@@ -1,100 +1,180 @@
 # `trufflecheck`
 
-Static analysis checks and strictness profiles for Truffle implementations on GraalVM, shared across Elide's
-repositories (`runtime`, `bali`, `komodo`, `myna`, `toolchain`, `truffledata`, `trufflecel`).
+Static analysis rules and strictness profiles for [Truffle](https://www.graalvm.org/latest/graalvm-as-a-platform/language-implementation-framework/)
+languages that ship as **GraalVM Native Image** (SubstrateVM) binaries. Used across Elide's repositories.
 
-The rules started in [elide-dev/runtime#3006](https://github.com/elide-dev/runtime/pull/3006). This repository
-generalizes them so any project can enable them with its own policy.
+- **Rule JARs:** Error Prone checks for Java and a detekt rule set for Kotlin, aimed at partial-evaluation and image-heap
+  hazards that compile cleanly but break or slow down a native image.
+- **Profiles:** shared Error Prone/NullAway, detekt, CPD, cargo-deny, clippy, rustfmt, Biome and tsconfig settings.
 
-## Layout
+Licensed under [Apache-2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT), at your option.
 
-| Path | What |
+## Get it
+
+| Channel | What you get |
 |---|---|
-| `policy/` | `trufflecheck-policy.jar`: rule policy (owners, scopes, messages, class-init lists), shared by both rule JARs |
-| `errorprone/` | `trufflecheck-errorprone.jar`: Error Prone BugCheckers, with the policy packaged in |
-| `detekt/` | `trufflecheck-detekt.jar`: detekt rule set `Truffle`, with the policy packaged in |
-| `profiles/jvm/` | `errorprone.args` (Error Prone + NullAway flags), `detekt.yaml`, `cpd.args` (PMD CPD) |
-| `profiles/rust/` | baseline `deny.toml`, `clippy.toml`, `rustfmt.toml`, and `lints.toml` (`[workspace.lints]` to paste) |
-| `profiles/typescript/` | `biome.json` (for `extends`) and `tsconfig.strict.json` (for `extends`) |
-| `tests/` | fixtures and `smoke.sh`, which runs real javac + Error Prone and the detekt CLI over them |
-
-## Build and test
+| Maven, at `https://maven.elide.dev` | `dev.elide:trufflecheck-errorprone`, `dev.elide:trufflecheck-detekt`, `dev.elide:trufflecheck-policy` |
+| [GitHub releases](https://github.com/elide-dev/trufflecheck/releases) | the same JARs, plus `trufflecheck-profiles-<version>.tar.gz` |
+| git submodule | everything, including `profiles/` to `extends` from |
 
 ```sh
-mise install      # pinned Elide
-mise run build    # elide build: all three JARs under <member>/.dev/artifacts/jar/
-mise run test     # tests/smoke.sh: every `// expect: Rule` marker must fire, and nothing else
+git submodule add https://github.com/elide-dev/trufflecheck third_party/trufflecheck
 ```
 
-`smoke.sh` needs JDK 21+ and curl. It downloads pinned analyzer JARs (the same pins `runtime` uses) into
-`$TRUFFLECHECK_CACHE` (default `~/.cache/trufflecheck`).
+## Use the rules
 
-## Rules
+### Error Prone (Java)
 
-| Rule | Error Prone | detekt | Catches |
-|---|:-:|:-:|---|
-| `TruffleNodeChildren` | ✓ | | Node fields/arrays (or nodes captured by anonymous nodes) without `@Child`/`@Children` |
-| `TruffleBlockingInNode` | ✓ | ✓ | locks, `synchronized`, thread-locals, blocking calls in a `Node` outside `@TruffleBoundary` |
-| `TruffleCompilationFinalDimensions` | ✓ | | `@CompilationFinal` array fields without `dimensions` |
-| `TruffleHostInterop` | ✓ | ✓ | `org.graalvm.polyglot` imports in guest-implementation packages (`hostinterop.scope`) |
-| `TruffleHostValueInImageHeap` | ✓ | ✓ | build-host values (env, clock, locale, …) read by build-time static initializers |
-| `TruffleStackfulException` | ✓ | ✓ | stack-capturing exception constructors |
-| `TruffleForbiddenCollection` | ✓ | ✓ | `LinkedList`, `Vector`, `Hashtable`, `Stack` |
-| `TruffleAnalysisError` | | ✓ | Kotlin sources detekt couldn't fully resolve (so other findings may be missing) |
+Put `trufflecheck-errorprone` on the annotation-processor path next to Error Prone, then enable the checks. The
+full profile we use is in [`profiles/jvm/errorprone.args`](profiles/jvm/errorprone.args), one flag per line.
 
-In runtime#3006 these were named `Elide*`. Each Error Prone check keeps its old name as an `altName`, so existing
-`@SuppressWarnings("ElideNodeChildren")` still works.
+**Gradle** (`net.ltgt.errorprone`):
 
-## Policy
+```kotlin
+repositories { maven("https://maven.elide.dev") }
 
-Defaults ship in `META-INF/trufflecheck/policy.properties`. A project points at its own overlay file, where
-`key=value` replaces a default and `key+=value` appends to a default list:
+dependencies {
+  errorprone("com.google.errorprone:error_prone_core:2.51.0")
+  errorprone("dev.elide:trufflecheck-errorprone:0.1.0")
+}
+
+tasks.withType<JavaCompile>().configureEach {
+  options.errorprone {
+    error("TruffleNodeChildren", "TruffleCompilationFinalDimensions", "TruffleBlockingInNode",
+          "TruffleHostValueInImageHeap", "TruffleHostInterop", "TruffleStackfulException")
+    option("Trufflecheck:Policy", "$rootDir/trufflecheck.properties")
+  }
+}
+```
+
+**Maven:**
+
+```xml
+<plugin>
+  <artifactId>maven-compiler-plugin</artifactId>
+  <configuration>
+    <compilerArgs>
+      <arg>-XDcompilePolicy=simple</arg>
+      <arg>--should-stop=ifError=FLOW</arg>
+      <arg>-Xplugin:ErrorProne -Xep:TruffleNodeChildren:ERROR -XepOpt:Trufflecheck:Policy=${maven.multiModuleProjectDirectory}/trufflecheck.properties</arg>
+    </compilerArgs>
+    <annotationProcessorPaths>
+      <path><groupId>com.google.errorprone</groupId><artifactId>error_prone_core</artifactId><version>2.51.0</version></path>
+      <path><groupId>dev.elide</groupId><artifactId>trufflecheck-errorprone</artifactId><version>0.1.0</version></path>
+    </annotationProcessorPaths>
+  </configuration>
+</plugin>
+```
+
+Add `https://maven.elide.dev` under `<repositories>`. Error Prone also needs its `--add-exports`/`--add-opens` lines
+in `.mvn/jvm.config`; see the [Error Prone install docs](https://errorprone.info/docs/installation).
+
+**Bazel** (`rules_jvm_external`):
+
+```starlark
+maven.install(
+    artifacts = ["dev.elide:trufflecheck-errorprone:0.1.0"],
+    repositories = ["https://maven.elide.dev", "https://repo1.maven.org/maven2"],
+)
+```
+
+```starlark
+java_plugin(name = "trufflecheck", deps = ["@maven//:dev_elide_trufflecheck_errorprone"])
+# then list ":trufflecheck" in `plugins` and add `-Xep:Truffle…:ERROR` flags to `javacopts`
+```
+
+### detekt (Kotlin)
+
+```sh
+detekt --plugins trufflecheck-detekt-0.1.0.jar \
+  --config third_party/trufflecheck/profiles/jvm/detekt.yaml \
+  --analysis-mode full --classpath "$CLASSPATH" --input src/main/kotlin
+```
+
+With Gradle, use `detektPlugins("dev.elide:trufflecheck-detekt:0.1.0")`. Rules live in the `Truffle` rule set; point
+them at your policy with `policy:` under `Truffle:`, or with `-Dtrufflecheck.policy=…`. Targets detekt 2.0.0-alpha.6.
+
+### Policy: tell the rules about your project
+
+Two rules need to know your project's layout before they do anything: which packages hold guest code, and which
+classes Native Image initializes at build time. Put that in a properties file:
 
 ```properties
-# trufflecheck.properties
+# trufflecheck.properties. Paths are relative to this file.
 hostinterop.scope=dev.elide.komodo
-classinit.buildtime=tools/classinit/buildtime.txt   # relative to this file
+classinit.buildtime=tools/classinit/buildtime.txt
 classinit.runtime=tools/classinit/runtime.txt
+# `key+=` appends to a default list instead of replacing it
 collections+=java.util.concurrent.CopyOnWriteArrayList
 ```
 
-`TruffleHostInterop` stays inactive until `hostinterop.scope` is set, and `TruffleHostValueInImageHeap` until a
-build-time class-init list is.
+Class-init lists hold one class or package prefix per line, as passed to `--initialize-at-build-time` /
+`--initialize-at-run-time`; the most specific match wins.
 
-Tools find the overlay in this order: the checker's own option, the `trufflecheck.policy` system property, then the
-`TRUFFLECHECK_POLICY` environment variable.
+The rules find the file through, in order:
+1. the checker option: `-XepOpt:Trufflecheck:Policy=…` for Error Prone, `policy:` for detekt;
+2. the `trufflecheck.policy` system property;
+3. the `TRUFFLECHECK_POLICY` environment variable.
 
-## Using the JARs
+All defaults are in
+[`policy.properties`](policy/src/main/resources/META-INF/trufflecheck/policy.properties).
 
-**Error Prone (javac)**: put the JAR on the processor path next to Error Prone, then enable the rules:
+## Rule catalogue
 
-```
--Xplugin:ErrorProne -Xep:TruffleNodeChildren:ERROR … -XepOpt:Trufflecheck:Policy=trufflecheck.properties
-```
+Rule names in `elide-dev/runtime` started as `Elide*`. Error Prone still accepts those names, including in
+`@SuppressWarnings`.
 
-`profiles/jvm/errorprone.args` is the full runtime profile, one flag per line. Under Bazel, add the JAR as a
-`java_plugin` dependency alongside `//bazel:nullaway` and append the flags to `javacopts`.
+| Rule | Java | Kotlin | Flags | Why |
+|---|:-:|:-:|---|---|
+| `TruffleNodeChildren` | ✓ | | A `Node` field or `Node[]` without `@Child`/`@Children`; a node captured by an anonymous node class | The node is never adopted, so partial evaluation can't treat it as a constant. Calls through it stay virtual, and passing the frame into one aborts compilation. |
+| `TruffleCompilationFinalDimensions` | ✓ | | `@CompilationFinal` on an array field without `dimensions` | By default only the array reference is constant; element reads stay real loads in compiled code. Declare how deep the constant goes. |
+| `TruffleBlockingInNode` | ✓ | ✓ | `synchronized`, locks, `ThreadLocal`, `Thread.sleep`, `Future.get`, `wait` in a `Node` outside `@TruffleBoundary` | Partial evaluation would inline monitor and blocking paths into compiled guest code. Keep them behind a boundary, where they compile as ordinary host calls. |
+| `TruffleHostValueInImageHeap` | ✓ | ✓ | `System.getenv`/`getProperty`, clocks, `Locale`/`TimeZone`/`Charset` defaults, `availableProcessors`, … read in a static initializer of a build-time-initialized class | Native Image runs that initializer on the build machine and freezes the result into the image heap. Every user then sees the builder's environment, time and locale. |
+| `TruffleHostInterop` | ✓ | ✓ | `org.graalvm.polyglot` imports in guest-implementation packages | The embedding API is for hosts. Guest code that uses it skips Truffle interop, can't be partially evaluated, and pulls the host API into the language. Use `InteropLibrary` and `@ExportLibrary`. |
+| `TruffleStackfulException` | ✓ | ✓ | `new RuntimeException(…)` and other stack-capturing JDK exception constructors | Filling in a stack trace walks the stack, which is slow on a hot path and defeats exception-based control flow. Use a stackless exception (`writableStackTrace = false`) or a Truffle exception type. |
+| `TruffleForbiddenCollection` | ✓ | ✓ | `LinkedList`, `Vector`, `Hashtable`, `Stack` | Pointer chasing or a lock on every operation. Array-backed collections are faster and partially evaluate cleanly. |
+| `TruffleAnalysisError` | | ✓ | Kotlin sources detekt couldn't fully resolve | Unresolved code hides findings. Fix the classpath rather than trust a clean report. |
 
-**detekt**: pass the JAR and the shared profile:
+## Profiles
 
-```sh
-detekt --plugins trufflecheck-detekt.jar --config profiles/jvm/detekt.yaml --analysis-mode full …
-```
+Under [`profiles/`](profiles):
 
-Set the overlay as a `policy:` key under `Truffle:` (or on one rule), or as `-Dtrufflecheck.policy=…`. The rule JAR
-targets detekt 2.0.0-alpha.6.
+- **`jvm/`**: `errorprone.args` (Error Prone + NullAway in JSpecify mode), `detekt.yaml` (bug-finding rules only, no
+  style or naming), `cpd.args` (PMD copy-paste detection).
+- **`rust/`**: `deny.toml`, `clippy.toml`, `rustfmt.toml`, plus `lints.toml`, a `[workspace.lints]` block to paste into
+  your workspace `Cargo.toml`.
+- **`typescript/`**: `biome.json` and `tsconfig.strict.json`.
 
-## Rust and TypeScript profiles
-
-cargo-deny and Cargo lints can't include other files. Copy `profiles/rust/*` to the workspace root, add
-repository-specific entries (git forks, advisory ignores, `skip`s) with justifications, and diff the shared sections
-against this repository in CI. You can run the baseline as-is with `cargo deny --config <path>/deny.toml check`.
-
-Biome and TypeScript support `extends`, from a vendored copy or a checkout (e.g. a submodule):
+Biome and TypeScript configs can extend the profiles directly:
 
 ```jsonc
 // biome.json
 { "extends": ["./third_party/trufflecheck/profiles/typescript/biome.json"] }
+```
+
+```jsonc
 // tsconfig.json
 { "extends": "./third_party/trufflecheck/profiles/typescript/tsconfig.strict.json" }
 ```
+
+Cargo and cargo-deny can't include other files. Copy the Rust profiles into your workspace and add only
+repo-specific entries (git forks, advisory ignores, duplicate `skip`s), each with a reason. To check a workspace
+against the baseline as-is:
+
+```sh
+cargo deny --config third_party/trufflecheck/profiles/rust/deny.toml check
+```
+
+## Develop
+
+```sh
+mise install     # pinned Elide
+mise run build   # elide build → <member>/.dev/artifacts/jar/*.jar
+mise run test    # build, then run javac + Error Prone and detekt over tests/ fixtures
+```
+
+Fixtures mark each expected finding with `// expect: RuleName`. The test fails on any missing or extra finding.
+`tests/smoke.sh` needs JDK 21+ and curl, and caches its pinned analyzer JARs in `$TRUFFLECHECK_CACHE`.
+
+To release, bump `version` in every `elide.pkl` and push a `vX.Y.Z` tag. CI then publishes to maven.elide.dev and
+creates the GitHub release.
