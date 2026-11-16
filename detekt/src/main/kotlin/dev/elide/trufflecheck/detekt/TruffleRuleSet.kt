@@ -33,6 +33,11 @@ class TruffleRules : RuleSetProvider {
         ::TruffleHostValueInImageHeap,
         ::TruffleNodeChildren,
         ::TruffleCompilationFinalDimensions,
+        ::TruffleCompilationFinalWrite,
+        ::TruffleMissingBoundary,
+        ::TruffleSkippedException,
+        ::TruffleChildWriteWithoutInsert,
+        ::TruffleChildrenLoop,
       ),
     )
 }

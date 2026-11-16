@@ -20,8 +20,13 @@ import com.sun.source.tree.StatementTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.UnaryTree;
 import com.sun.source.util.TreePath;
+import com.sun.source.tree.ArrayAccessTree;
+import com.sun.source.tree.AssignmentTree;
+import com.sun.source.tree.IdentifierTree;
+import com.sun.source.tree.MemberSelectTree;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Type;
+import java.util.function.Predicate;
 
 /** Truffle API names and the shared notion of "code partial evaluation may reach". */
 final class Truffle {
@@ -189,6 +194,96 @@ final class Truffle {
     if (body == null || body.getStatements().isEmpty()) return false;
     return body.getStatements().get(0) instanceof ExpressionStatementTree first
         && isDirective(first.getExpression(), ASSERTS, state, "neverPartOfCompilation");
+  }
+
+  /**
+   * Whether a statement before the current one, in any enclosing block up to the method, satisfies
+   * {@code test} (e.g. a dominating {@code transferToInterpreterAndInvalidate()}).
+   */
+  static boolean precededBy(TreePath path, Predicate<StatementTree> test) {
+    Tree child = path.getLeaf();
+    for (var parent = path.getParentPath(); parent != null; parent = parent.getParentPath()) {
+      var tree = parent.getLeaf();
+      if (tree instanceof MethodTree || tree instanceof ClassTree || tree instanceof LambdaExpressionTree) {
+        return false;
+      }
+      if (tree instanceof BlockTree block) {
+        for (var statement : block.getStatements()) {
+          if (statement == child) break;
+          if (test.test(statement)) return true;
+        }
+      }
+      child = tree;
+    }
+    return false;
+  }
+
+  /** Whether a statement is, or is an {@code if} whose then-branch holds, a statement matching {@code test}. */
+  static boolean containsStatement(StatementTree statement, Predicate<StatementTree> test) {
+    if (test.test(statement)) return true;
+    if (statement instanceof IfTree branch) {
+      var then = branch.getThenStatement();
+      if (then instanceof BlockTree block) {
+        for (var inner : block.getStatements()) {
+          if (containsStatement(inner, test)) return true;
+        }
+        return false;
+      }
+      return containsStatement(then, test);
+    }
+    return false;
+  }
+
+  /** The field a (possibly qualified) reference names, or null. */
+  static Symbol.VarSymbol field(ExpressionTree tree) {
+    tree = strip(tree);
+    if (!(tree instanceof IdentifierTree) && !(tree instanceof MemberSelectTree)) return null;
+    return ASTHelpers.getSymbol(tree) instanceof Symbol.VarSymbol variable
+            && variable.getKind().isField()
+        ? variable
+        : null;
+  }
+
+  /** For {@code a[i][j]}: the array expression at the root and the element depth (2). */
+  record ArrayRoot(ExpressionTree root, int depth) {}
+
+  static ArrayRoot arrayRoot(ExpressionTree tree) {
+    var depth = 0;
+    tree = strip(tree);
+    while (tree instanceof ArrayAccessTree access) {
+      depth++;
+      tree = strip(access.getExpression());
+    }
+    return new ArrayRoot(tree, depth);
+  }
+
+  /** {@code @CompilationFinal(dimensions = n)}: n, -1 when omitted (full depth), or null without it. */
+  static Integer compilationFinalDimensions(Symbol symbol, VisitorState state) {
+    for (var compound : symbol.getAnnotationMirrors()) {
+      if (!compound.getAnnotationType().toString().equals(COMPILATION_FINAL)) continue;
+      for (var entry : compound.getElementValues().entrySet()) {
+        if (entry.getKey().getSimpleName().contentEquals("dimensions")
+            && entry.getValue().getValue() instanceof Integer value) {
+          return value;
+        }
+      }
+      return -1;
+    }
+    return null;
+  }
+
+  /** Inside a constructor or initializer of {@code owner} (instance or static). */
+  static boolean inInitializerOf(TreePath path, Symbol owner) {
+    for (var parent = path.getParentPath(); parent != null; parent = parent.getParentPath()) {
+      var tree = parent.getLeaf();
+      if (tree instanceof LambdaExpressionTree) return false;
+      if (tree instanceof MethodTree method) {
+        var symbol = ASTHelpers.getSymbol(method);
+        return symbol != null && symbol.isConstructor() && symbol.owner == owner;
+      }
+      if (tree instanceof ClassTree type) return ASTHelpers.getSymbol(type) == owner;
+    }
+    return false;
   }
 
   /** The binary name of a class symbol. */

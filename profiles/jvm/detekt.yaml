@@ -225,3 +225,13 @@ Truffle:
     active: true
   TruffleCompilationFinalDimensions:
     active: true
+  TruffleCompilationFinalWrite:
+    active: true
+  TruffleMissingBoundary:
+    active: true
+  TruffleSkippedException:
+    active: true
+  TruffleChildWriteWithoutInsert:
+    active: true
+  TruffleChildrenLoop:
+    active: true

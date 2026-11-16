@@ -166,7 +166,9 @@ public final class Policy {
       var item = part.strip();
       if (!item.isEmpty()) out.add(item);
     }
-    return Set.copyOf(out);
+    // Unmodifiable but null-tolerant: Kotlin callers test nullable names with `in`, and Set.copyOf's
+    // contains(null) throws.
+    return java.util.Collections.unmodifiableSet(out);
   }
 
   /** Owners (types, packages or {@code Type#method} entries) the rule matches; required. */

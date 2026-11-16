@@ -32,6 +32,8 @@ import org.jetbrains.kotlin.psi.KtPrefixExpression
 import org.jetbrains.kotlin.psi.KtPropertyAccessor
 import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.jetbrains.kotlin.psi.psiUtil.containingClassOrObject
+import org.jetbrains.kotlin.psi.psiUtil.getStrictParentOfType
+import org.jetbrains.kotlin.idea.references.mainReference
 import org.jetbrains.kotlin.lexer.KtTokens
 
 /** Truffle API names. */
@@ -215,4 +217,79 @@ internal fun KaSession.inPartialEvaluation(element: KtElement): Boolean {
   return symbol.annotations.contains(Truffle.EXPORT_MESSAGE) ||
     symbol.annotations.contains(Truffle.SPECIALIZATION) ||
     symbol.annotations.contains(Truffle.FALLBACK)
+}
+
+/** Whether a statement before [element], in any enclosing block up to the function, satisfies [test]. */
+internal fun precededBy(element: KtElement, test: (KtExpression) -> Boolean): Boolean {
+  var child: com.intellij.psi.PsiElement = element
+  var parent = element.parent
+  while (parent != null && parent !is KtNamedFunction && parent !is KtPropertyAccessor && parent !is KtClassOrObject) {
+    if (parent is KtBlockExpression) {
+      for (statement in parent.statements) {
+        if (statement == child) break
+        if (test(statement)) return true
+      }
+    }
+    child = parent
+    parent = parent.parent
+  }
+  return false
+}
+
+/** A statement, or an `if` whose then-branch holds one, satisfying [test]. */
+internal fun containsStatement(statement: KtExpression, test: (KtExpression) -> Boolean): Boolean {
+  if (test(statement)) return true
+  if (statement is KtIfExpression) {
+    val then = statement.then ?: return false
+    return if (then is KtBlockExpression) then.statements.any { containsStatement(it, test) } else containsStatement(then, test)
+  }
+  return false
+}
+
+internal fun KaSession.isDirectiveCall(expression: KtExpression?, owner: String, vararg names: String): Boolean {
+  val target = (expression as? KtDotQualifiedExpression)?.selectorExpression ?: expression
+  val name = (target as? KtCallExpression)?.let { callableName(it) } ?: return false
+  return names.any { name == "$owner.$it" }
+}
+
+/** The member property a (possibly `this.`-qualified) reference names, or null. */
+internal fun KaSession.propertyOf(expression: KtExpression?): org.jetbrains.kotlin.analysis.api.symbols.KaPropertySymbol? {
+  val target =
+    when (expression) {
+      is KtDotQualifiedExpression -> expression.selectorExpression
+      else -> expression
+    } as? org.jetbrains.kotlin.psi.KtNameReferenceExpression ?: return null
+  val symbol = target.mainReference.resolveToSymbol() as? org.jetbrains.kotlin.analysis.api.symbols.KaPropertySymbol ?: return null
+  return symbol.takeIf { it.location != org.jetbrains.kotlin.analysis.api.symbols.KaSymbolLocation.LOCAL }
+}
+
+/** Annotations on a property and on its backing field (where Java FIELD-target annotations land). */
+internal fun KaSession.annotationsOf(symbol: org.jetbrains.kotlin.analysis.api.symbols.KaPropertySymbol): List<org.jetbrains.kotlin.analysis.api.annotations.KaAnnotation> =
+  symbol.annotations.toList() + (symbol.backingFieldSymbol?.annotations?.toList() ?: emptyList())
+
+internal fun KaSession.hasAnnotation(symbol: org.jetbrains.kotlin.analysis.api.symbols.KaPropertySymbol, id: ClassId): Boolean =
+  annotationsOf(symbol).any { it.classId == id }
+
+/** `@CompilationFinal(dimensions = n)`: n, -1 when omitted (full depth), or null without it. */
+internal fun KaSession.compilationFinalDimensions(symbol: org.jetbrains.kotlin.analysis.api.symbols.KaPropertySymbol): Int? {
+  val annotation = annotationsOf(symbol).firstOrNull { it.classId == Truffle.COMPILATION_FINAL } ?: return null
+  val value = annotation.arguments.firstOrNull { it.name.asString() == "dimensions" }?.expression
+  return ((value as? org.jetbrains.kotlin.analysis.api.annotations.KaAnnotationValue.ConstantValue)?.value?.value as? Number)?.toInt() ?: -1
+}
+
+/** Inside a constructor, `init` block or property initializer of [owner]. */
+internal fun inInitializerOf(element: KtElement, owner: KtClassOrObject?): Boolean {
+  var parent = element.parent
+  while (parent != null) {
+    when (parent) {
+      is KtNamedFunction, is KtPropertyAccessor, is org.jetbrains.kotlin.psi.KtLambdaExpression -> return false
+      is org.jetbrains.kotlin.psi.KtSecondaryConstructor, is org.jetbrains.kotlin.psi.KtAnonymousInitializer -> {
+        return parent.getStrictParentOfType<KtClassOrObject>() == owner
+      }
+      is org.jetbrains.kotlin.psi.KtProperty -> if (!parent.isLocal) return parent.getStrictParentOfType<KtClassOrObject>() == owner
+      is KtClassOrObject -> return false
+    }
+    parent = parent.parent
+  }
+  return false
 }

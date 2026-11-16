@@ -5,3 +5,8 @@ dev.elide.trufflecheck.errorprone.TruffleBlockingInNode
 dev.elide.trufflecheck.errorprone.TruffleCompilationFinalDimensions
 dev.elide.trufflecheck.errorprone.TruffleHostValueInImageHeap
 dev.elide.trufflecheck.errorprone.TruffleNodeChildren
+dev.elide.trufflecheck.errorprone.TruffleCompilationFinalWrite
+dev.elide.trufflecheck.errorprone.TruffleMissingBoundary
+dev.elide.trufflecheck.errorprone.TruffleSkippedException
+dev.elide.trufflecheck.errorprone.TruffleChildWriteWithoutInsert
+dev.elide.trufflecheck.errorprone.TruffleChildrenLoop

@@ -106,8 +106,8 @@ done
     -proc:none -cp "$truffle" -d "$work/java" -Xmaxerrs 1000 $(find java -name '*.java' | sort) \
     >"$work/errorprone.log" 2>&1 || true
 )
-grep -oE '^[^ :]+\.java:[0-9]+: error: \[[A-Za-z]+\]' "$work/errorprone.log" |
-  sed -E 's/^([^:]+):([0-9]+): error: \[(.*)\]$/\1:\2:\3/' | sort >"$work/ep.got" || true
+grep -oE '^[^ :]+\.java:[0-9]+: (error|warning): \[[A-Za-z]+\]' "$work/errorprone.log" |
+  sed -E 's/^([^:]+):([0-9]+): (error|warning): \[(.*)\]$/\1:\2:\4/' | sort >"$work/ep.got" || true
 expected java java >"$work/ep.want"
 if [[ ! -s "$work/ep.got" ]]; then
   cat "$work/errorprone.log" >&2
