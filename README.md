@@ -22,6 +22,16 @@ Built against [Elide's GraalVM](https://graalvm.elide.dev) 25.5 line. Licensed u
 git submodule add https://github.com/elide-dev/trufflecheck third_party/trufflecheck
 ```
 
+### Verify
+
+Releases are immutable once published, and every JAR and profiles tarball carries a build provenance attestation from
+the release workflow. The JARs on maven.elide.dev are byte-identical to the release assets. To check a download:
+
+```sh
+gh attestation verify trufflecheck-errorprone-<version>.jar --repo elide-dev/trufflecheck
+gh release verify v<version> --repo elide-dev/trufflecheck   # GitHub's own release attestation
+```
+
 ## Use the rules
 
 ### Error Prone (Java)

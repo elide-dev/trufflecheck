@@ -1,9 +1,11 @@
 # Release Please keeps a release pull request open from Conventional Commits on main. Merging it bumps the versions
-# (elide.pkl files, README samples), writes CHANGELOG.md, tags v<version> and creates the GitHub release. The publish job
-# then builds and tests that commit and publishes it:
+# (elide.pkl files, README samples), writes CHANGELOG.md, tags v<version> and creates a *draft* GitHub release. The
+# publish job then builds and tests that tag and publishes it:
 #   - Maven: dev.elide:trufflecheck-{policy,errorprone,detekt} to https://maven.elide.dev (R2 bucket elide-maven)
+#   - Build provenance attestations (Sigstore, via GitHub) for every JAR and the profiles tarball
 #   - GitHub release assets: the three JARs, trufflecheck-profiles-<version>.tar.gz and SHA256SUMS
-# Publishing credentials live in the `release` environment (deployments from main only).
+# Publishing the draft comes last: the repository uses immutable releases, so assets and the tag are locked from then on
+# and GitHub adds its own release attestation. Publishing credentials live in the `release` environment (main only).
 name: Release
 
 on:
@@ -48,6 +50,8 @@ jobs:
     environment: release
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     env:
       VERSION: ${{ needs.release-please.outputs.version }}
       TAG: ${{ needs.release-please.outputs.tag_name }}
@@ -124,14 +128,35 @@ jobs:
             [[ "$want" == "$got" ]] || { echo "::error::$path differs from what was uploaded"; exit 1; }
           done
 
-      - name: Attach artifacts to the GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Assemble release assets
         run: |
           mkdir -p build/release
           for artifact in policy errorprone detekt; do
             cp "build/maven/dev/elide/trufflecheck-$artifact/$VERSION/trufflecheck-$artifact-$VERSION.jar" build/release/
           done
           tar -czf "build/release/trufflecheck-profiles-$VERSION.tar.gz" profiles LICENSE LICENSE-APACHE LICENSE-MIT
-          (cd build/release && sha256sum -- * > SHA256SUMS)
+          (cd build/release && sha256sum -- *.jar *.tar.gz > SHA256SUMS)
+
+      # The JARs attested here are byte-identical to the ones on maven.elide.dev (checked above).
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            build/release/*.jar
+            build/release/*.tar.gz
+
+      - name: Verify attestations
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for file in build/release/*.jar build/release/*.tar.gz; do
+            gh attestation verify "$file" --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml"
+          done
+
+      - name: Attach assets and publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
           gh release upload "$TAG" build/release/* --clobber
+          # Last: with immutable releases, publishing locks the assets and tag.
+          gh release edit "$TAG" --draft=false --latest
