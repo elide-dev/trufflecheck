@@ -11,9 +11,44 @@
 -Xep:TruffleCompilationFinalDimensions:ERROR
 -Xep:TruffleHostValueInImageHeap:ERROR
 -Xep:TruffleNodeChildren:ERROR
+-Xep:TruffleCompilationFinalWrite:ERROR
+-Xep:TruffleMissingBoundary:ERROR
+-Xep:TruffleSkippedException:ERROR
+-Xep:TruffleChildWriteWithoutInsert:ERROR
+-Xep:TruffleStaticContextState:ERROR
+-Xep:TruffleFrameEscape:ERROR
+-Xep:TruffleNonConstantNodeState:ERROR
+-Xep:TruffleGenericCatch:ERROR
+-Xep:TruffleDslSuppressions:ERROR
+-Xep:TruffleChildrenLoop:WARN
+-Xep:TruffleDeoptLoop:WARN
+-Xep:TruffleGuestLoop:WARN
+-Xep:TruffleFastPathRecursion:WARN
+-Xep:TruffleDeprecatedApi:WARN
+-Xep:TruffleLegacyProfile:WARN
+-Xep:TruffleUncachedOnFastPath:WARN
+-Xep:TruffleFieldUpdaterConstant:WARN
+-Xep:TruffleDeclaredType:WARN
+-Xep:TruffleBoundaryExceptionPolicy:WARN
+-Xep:TruffleSlowPathInline:WARN
+-Xep:TruffleBytecodeSwitch:WARN
 -Xep:NullAway:ERROR
 -XepOpt:NullAway:OnlyNullMarked=true
 -XepOpt:NullAway:JSpecifyMode=true
+# Native Image: build-host state and class-init hazards (build-time initialization seals them into the image heap).
+-Xep:DefaultCharset:ERROR
+-Xep:DefaultLocale:ERROR
+-Xep:UnsafeLocaleUsage:ERROR
+-Xep:ClassInitializationDeadlock:ERROR
+# Per-context state and concurrency hazards that overlap TruffleStaticContextState.
+-Xep:ThreadLocalUsage:ERROR
+-Xep:StaticAssignmentInConstructor:ERROR
+-Xep:DoubleCheckedLocking:ERROR
+# Closed-world and embedder hygiene.
+-Xep:BanClassLoader:WARN
+-Xep:BanSerializableRead:WARN
+-Xep:BanJNDI:WARN
+-Xep:SystemExitOutsideMain:WARN
 # Opt-in checks (disabled by default upstream): nullness coverage, concurrency, dead code, API misuse.
 # Shipped with NullAway (not in the EP catalog): every class must state @NullMarked/@NullUnmarked.
 -Xep:RequireExplicitNullMarking:WARN
@@ -26,13 +61,11 @@
 -Xep:InterruptedExceptionSwallowed:WARN
 -Xep:Interruption:WARN
 -Xep:NonFinalStaticField:WARN
--Xep:FieldCanBeFinal:WARN
 -Xep:FieldCanBeLocal:WARN
 -Xep:MethodCanBeStatic:WARN
 -Xep:UnusedException:WARN
 -Xep:CheckedExceptionNotThrown:WARN
 -Xep:UnnecessaryAnonymousClass:WARN
--Xep:DefaultLocale:WARN
 -Xep:MissingDefault:WARN
 -Xep:ConstantPatternCompile:WARN
 -Xep:TryWithResourcesVariable:WARN
@@ -43,15 +76,12 @@
 -Xep:DepAnn:WARN
 -Xep:EmptyIf:WARN
 -Xep:FunctionalInterfaceClash:WARN
--Xep:HardCodedSdCardPath:WARN
 -Xep:LongLiteralLowerCaseSuffix:WARN
--Xep:NoAllocation:WARN
 -Xep:RedundantThrows:WARN
 -Xep:TestExceptionChecker:WARN
 -Xep:ThrowsUncheckedException:WARN
 -Xep:TransientMisuse:WARN
 -Xep:UnnecessaryDefaultInEnumSwitch:WARN
--Xep:UnsafeLocaleUsage:WARN
 -Xep:UseCorrectAssertInTests:WARN
 -Xep:SwitchDefault:WARN
 # Default-on checks switched off: style/idiom churn that the formatters or taste already settle.
@@ -72,3 +102,5 @@
 -Xep:AssignmentExpression:OFF
 -Xep:BooleanLiteral:OFF
 -Xep:ParameterMissingNullable:OFF
+# Would make @Child fields final, which Truffle rejects (and @CompilationFinal fields, which then can't change).
+-Xep:FieldCanBeFinal:OFF

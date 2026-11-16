@@ -169,8 +169,12 @@ Rule names in `elide-dev/runtime` started as `Elide*`. Error Prone still accepts
 
 Under [`profiles/`](profiles):
 
-- **`jvm/`**: `errorprone.args` (Error Prone + NullAway in JSpecify mode), `detekt.yaml` (bug-finding rules only, no
-  style or naming), `cpd.args` (PMD copy-paste detection).
+- **`jvm/`**: `errorprone.args` (every trufflecheck check at its default severity, NullAway in JSpecify mode,
+  `DefaultCharset`/`DefaultLocale`/`ClassInitializationDeadlock` as errors for build-time initialization), `detekt.yaml`
+  (bug-finding rules only, no style or naming; `CouldBeSequence` off, since sequences add calls partial evaluation
+  can't devirtualize), `cpd.args` (PMD copy-paste detection). For Kotlin node modules, also consider kotlinc's
+  `-Xno-param-assertions -Xno-call-assertions -Xno-receiver-assertions`: the `Intrinsics.check*` calls they remove sit
+  on fast paths and throw stackful exceptions.
 - **`rust/`**: `deny.toml`, `clippy.toml`, `rustfmt.toml`, plus `lints.toml`, a `[workspace.lints]` block to paste into
   your workspace `Cargo.toml`.
 - **`typescript/`**: `biome.json` and `tsconfig.strict.json`.

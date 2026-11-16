@@ -83,8 +83,9 @@ performance:
   active: true
   ArrayPrimitive:
     active: true
+  # Sequences add lambdas and iterator calls that partial evaluation can't devirtualize; wrong advice for nodes.
   CouldBeSequence:
-    active: true
+    active: false
   ForEachOnRange:
     active: true
   SpreadOperator:

@@ -23,6 +23,10 @@ pins=(
   "dev.detekt:detekt-cli:2.0.0-alpha.6:all|d46ca62ea4d62769b5d5c3ba94d49fa9b80ba11c7dba74ddb6df7fcc2c19c5fd"
   # The fixtures' analysis classpath needs a stdlib; matches the Kotlin the rules build with.
   "org.jetbrains.kotlin:kotlin-stdlib:2.5.0-RC|aa94e6f417847322aa58d9fbec93278b74010f3cf593cf2038bd865e1ef42c3f"
+  # NullAway, for validating the full Error Prone profile.
+  "com.uber.nullaway:nullaway:0.14.3|440d3217f6a74d3b8dab766b0c63dbfbb87bea36d798879865218249dc3f1604"
+  "org.checkerframework:dataflow-nullaway:4.3.1|dc7b9ceddc9a68a1ffa9d66b5d62967ca3843712a671127c5a6c184f23a4f940"
+  "org.jspecify:jspecify:1.0.1|070d75f261fe4c5b8202508366715f7f2d4660f88c8ef7e6d3575e48c9683b66"
 )
 truffle_pins=(
   "org.graalvm.truffle:truffle-api:25.5.5-elide.28|8d4a1366a2fa828bd1bc9dc7222b21d49e78961bb115417fd347cd29c0186442|$graalvm"
@@ -57,6 +61,8 @@ errorprone="$(fetch "${pins[0]}")"
 dataflow="$(fetch "${pins[1]}")"
 detekt="$(fetch "${pins[2]}")"
 stdlib="$(fetch "${pins[3]}")"
+nullaway="$(fetch "${pins[4]}"):$(fetch "${pins[5]}")"
+jspecify="$(fetch "${pins[6]}")"
 truffle=""
 for pin in "${truffle_pins[@]}"; do truffle+="${truffle:+:}$(fetch "$pin")"; done
 
@@ -113,6 +119,30 @@ if [[ ! -s "$work/ep.got" ]]; then
   cat "$work/errorprone.log" >&2
 fi
 compare "error prone" "$work/ep.want" "$work/ep.got"
+
+# The full shipped Error Prone profile must load: every check name and flag valid. Findings aren't compared.
+profile=()
+while IFS= read -r line; do
+  line="${line%%#*}"
+  line="${line#"${line%%[![:space:]]*}"}"
+  line="${line%"${line##*[![:space:]]}"}"
+  [[ -n "$line" ]] && profile+=("$line")
+done <"$root/profiles/jvm/errorprone.args"
+(
+  cd "$tests"
+  "${bin}javac" "${exports[@]}" -XDcompilePolicy=simple --should-stop=ifError=FLOW \
+    -processorpath "$errorprone:$dataflow:$nullaway:$ep_rules" \
+    "-Xplugin:ErrorProne ${profile[*]} -XepOpt:Trufflecheck:Policy=$tests/policy.properties" \
+    -proc:none -cp "$truffle:$jspecify" -d "$work/profile" -Xmaxerrs 1000 $(find java -name '*.java' | sort) \
+    >"$work/profile.log" 2>&1 || true
+)
+if grep -qiE 'InvalidCommandLineOption|unknown check|invalid flag|error: plug-in not found|An exception has occurred' "$work/profile.log"; then
+  echo "FAIL error prone profile doesn't load"
+  grep -iE 'InvalidCommandLineOption|unknown check|invalid flag|plug-in not found|exception' "$work/profile.log" | head -5
+  failed=1
+else
+  echo "ok   error prone profile ($((${#profile[@]})) flags)"
+fi
 
 # detekt: the shipped profile, with the overlay passed as a system property.
 (
