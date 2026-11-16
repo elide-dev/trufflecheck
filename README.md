@@ -1,4 +1,4 @@
-# trufflecheck
+<img src=".github/assets/readme-banner.jpg" alt="trufflecheck: static analysis rules and agent guidance for Truffle" width="100%">
 
 [![CI](https://github.com/elide-dev/trufflecheck/actions/workflows/ci.yml/badge.svg)](https://github.com/elide-dev/trufflecheck/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/elide-dev/trufflecheck)](https://github.com/elide-dev/trufflecheck/releases)
