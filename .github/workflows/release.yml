@@ -1,47 +1,84 @@
-# Publishes a tagged version (vX.Y.Z, matching elide.pkl):
+# Release Please keeps a release pull request open from Conventional Commits on main. Merging it bumps the versions
+# (elide.pkl files, README samples), writes CHANGELOG.md, tags v<version> and creates the GitHub release. The publish job
+# then builds and tests that commit and publishes it:
 #   - Maven: dev.elide:trufflecheck-{policy,errorprone,detekt} to https://maven.elide.dev (R2 bucket elide-maven)
-#   - GitHub release: the three JARs plus trufflecheck-profiles-X.Y.Z.tar.gz
+#   - GitHub release assets: the three JARs, trufflecheck-profiles-<version>.tar.gz and SHA256SUMS
+# Publishing credentials live in the `release` environment (deployments from main only).
 name: Release
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Publish ${{ github.ref_name }}
-    runs-on: ubuntu-latest
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
+        with:
+          # A RELEASE_PLEASE_TOKEN (fine-grained or GitHub App) makes CI run on the release pull request too.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish:
+    name: Publish ${{ needs.release-please.outputs.tag_name }}
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: release
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.release-please.outputs.version }}
+      TAG: ${{ needs.release-please.outputs.tag_name }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+      - uses: elide-dev/setup-elide@10fbf30cebffd3538c428369950dc2094137f02b # v4.2.0
+        with:
+          version: 1.6.4+20261116
+          channel: nightly
       - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: temurin
           java-version: "25"
-      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
 
-      - name: Check the tag matches every manifest version
-        id: version
+      - name: Check the release matches every manifest version
         run: |
-          version="${GITHUB_REF_NAME#v}"
           for manifest in elide.pkl policy/elide.pkl errorprone/elide.pkl detekt/elide.pkl; do
-            grep -qx "version = \"$version\"" "$manifest" || { echo "::error::$manifest is not at $version"; exit 1; }
+            grep -qE "^version = \"$VERSION\"( |$)" "$manifest" || { echo "::error::$manifest is not at $VERSION"; exit 1; }
           done
-          echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Build and smoke-test
-        run: mise run test
+      - name: Build
+        run: elide build
+      - name: Test
+        run: tests/smoke.sh
 
       - name: Refuse to overwrite a published version
         run: |
           for artifact in trufflecheck-policy trufflecheck-errorprone trufflecheck-detekt; do
-            url="https://maven.elide.dev/dev/elide/$artifact/${{ steps.version.outputs.version }}/$artifact-${{ steps.version.outputs.version }}.pom"
+            url="https://maven.elide.dev/dev/elide/$artifact/$VERSION/$artifact-$VERSION.pom"
             if curl -fsSI "$url" >/dev/null; then echo "::error::$url already exists"; exit 1; fi
           done
 
@@ -54,9 +91,9 @@ jobs:
             curl -fsSL -o "$dir/maven-metadata.xml" "https://maven.elide.dev/dev/elide/$artifact/maven-metadata.xml" \
               || rm -f "$dir/maven-metadata.xml"
           done
-          mise exec -- elide publish --to staging
+          elide publish --to staging
           # Elide keeps a stale <latest> when merging (elide-dev/runtime#3012): point it at this release.
-          python3 - "${{ steps.version.outputs.version }}" <<'PY'
+          python3 - "$VERSION" <<'PY'
           import hashlib, pathlib, re, sys
           version = sys.argv[1]
           for meta in pathlib.Path("build/maven/dev/elide").glob("*/maven-metadata.xml"):
@@ -81,21 +118,20 @@ jobs:
       - name: Verify the published artifacts
         run: |
           for artifact in trufflecheck-policy trufflecheck-errorprone trufflecheck-detekt; do
-            path="dev/elide/$artifact/${{ steps.version.outputs.version }}/$artifact-${{ steps.version.outputs.version }}.jar"
+            path="dev/elide/$artifact/$VERSION/$artifact-$VERSION.jar"
             want="$(sha256sum "build/maven/$path" | cut -d' ' -f1)"
             got="$(curl -fsSL "https://maven.elide.dev/$path" | sha256sum | cut -d' ' -f1)"
             [[ "$want" == "$got" ]] || { echo "::error::$path differs from what was uploaded"; exit 1; }
           done
 
-      - name: Create the GitHub release
+      - name: Attach artifacts to the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version="${{ steps.version.outputs.version }}"
           mkdir -p build/release
           for artifact in policy errorprone detekt; do
-            cp "build/maven/dev/elide/trufflecheck-$artifact/$version/trufflecheck-$artifact-$version.jar" build/release/
+            cp "build/maven/dev/elide/trufflecheck-$artifact/$VERSION/trufflecheck-$artifact-$VERSION.jar" build/release/
           done
-          tar -czf "build/release/trufflecheck-profiles-$version.tar.gz" profiles LICENSE LICENSE-APACHE LICENSE-MIT
+          tar -czf "build/release/trufflecheck-profiles-$VERSION.tar.gz" profiles LICENSE LICENSE-APACHE LICENSE-MIT
           (cd build/release && sha256sum -- * > SHA256SUMS)
-          gh release create "$GITHUB_REF_NAME" build/release/* --title "trufflecheck $version" --generate-notes
+          gh release upload "$TAG" build/release/* --clobber

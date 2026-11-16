@@ -8,7 +8,7 @@
 amends "elide:project.pkl"
 
 name = "trufflecheck"
-version = "0.1.0"
+version = "0.1.0" // x-release-please-version
 description = "Static analysis rules and strictness profiles for Truffle implementations on GraalVM"
 
 publishing {

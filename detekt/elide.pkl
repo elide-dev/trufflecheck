@@ -8,7 +8,7 @@ local policy = project("policy")
 local detektVersion = "2.0.0-alpha.6"
 
 name = "detekt"
-version = "0.1.0"
+version = "0.1.0" // x-release-please-version
 
 jvm {
   target = 21

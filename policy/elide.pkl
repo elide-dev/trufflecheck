@@ -3,7 +3,7 @@ amends "elide:project.pkl"
 import "elide:Jvm.pkl" as Jvm
 
 name = "policy"
-version = "0.1.0"
+version = "0.1.0" // x-release-please-version
 
 jvm {
   // Error Prone 2.51 runs on JDK 21+; target the oldest JDK a consumer may run javac on.

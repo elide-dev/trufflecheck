@@ -15,14 +15,26 @@ concurrency:
 jobs:
   test:
     name: Build and test rules
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Same Elide nightly as mise.toml.
+      - uses: elide-dev/setup-elide@10fbf30cebffd3538c428369950dc2094137f02b # v4.2.0
+        with:
+          version: 1.6.4+20261116
+          channel: nightly
       # The smoke test drives javac + Error Prone and the detekt CLI on a stock JDK.
       - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: temurin
           java-version: "25"
-      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
-      - name: Build and smoke-test
-        run: mise run test
+      - name: Cache pinned analyzer JARs
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/trufflecheck
+          key: trufflecheck-analyzers-${{ hashFiles('tests/smoke.sh') }}
+      - name: Build
+        run: elide build
+      - name: Test
+        run: tests/smoke.sh
