@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/elide-dev/trufflecheck/compare/v0.1.0...v0.1.1) (2026-11-16)
+
+
+### Features
+
+* Truffle language agent skill, installable as elide-dev@trufflecheck ([50fd788](https://github.com/elide-dev/trufflecheck/commit/50fd7882c98ffc0823f577fc53b07a68a760efcf))
+
 ## 0.1.0 (2026-11-16)
 
 

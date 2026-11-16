@@ -57,7 +57,7 @@ profile is [`profiles/jvm/errorprone.args`](profiles/jvm/errorprone.args), one f
 <br>
 
 ```kotlin
-val trufflecheck = "0.1.0" // x-release-please-version
+val trufflecheck = "0.1.1" // x-release-please-version
 
 repositories { maven("https://maven.elide.dev") }
 
@@ -85,7 +85,7 @@ Error Prone also needs its `--add-exports`/`--add-opens` lines in `.mvn/jvm.conf
 
 ```xml
 <properties>
-  <trufflecheck.version>0.1.0</trufflecheck.version> <!-- x-release-please-version -->
+  <trufflecheck.version>0.1.1</trufflecheck.version> <!-- x-release-please-version -->
 </properties>
 
 <repositories>
@@ -115,7 +115,7 @@ Error Prone also needs its `--add-exports`/`--add-opens` lines in `.mvn/jvm.conf
 <br>
 
 ```starlark
-TRUFFLECHECK = "0.1.0"  # x-release-please-version
+TRUFFLECHECK = "0.1.1"  # x-release-please-version
 
 maven.install(
     artifacts = ["dev.elide:trufflecheck-errorprone:" + TRUFFLECHECK],
@@ -132,7 +132,7 @@ java_plugin(name = "trufflecheck", deps = ["@maven//:dev_elide_trufflecheck_erro
 ### detekt (Kotlin)
 
 ```sh
-version=0.1.0  # x-release-please-version
+version=0.1.1  # x-release-please-version
 detekt --plugins "trufflecheck-detekt-$version.jar" \
   --config third_party/trufflecheck/profiles/jvm/detekt.yaml \
   --analysis-mode full --classpath "$CLASSPATH" --input src/main/kotlin
