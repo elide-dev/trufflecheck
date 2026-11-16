@@ -45,6 +45,14 @@ dependencies {
 artifacts {
   ["jar"] = new Jvm.Jar {
     name = "trufflecheck-errorprone"
+    // License texts arrive with the policy JAR's META-INF.
     from { policy }
+  }
+}
+
+publishing {
+  maven {
+    groupId = "dev.elide"
+    artifactId = "trufflecheck-errorprone"
   }
 }

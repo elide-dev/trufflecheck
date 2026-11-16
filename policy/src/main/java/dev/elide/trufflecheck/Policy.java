@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2024-2026 Elide Technologies, Inc.
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
 package dev.elide.trufflecheck;

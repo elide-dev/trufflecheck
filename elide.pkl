@@ -11,6 +11,32 @@ name = "trufflecheck"
 version = "0.1.0"
 description = "Static analysis rules and strictness profiles for Truffle implementations on GraalVM"
 
+publishing {
+  maven {
+    groupId = "dev.elide"
+    // Staged here by `elide publish`; CI uploads the tree to the bucket behind https://maven.elide.dev.
+    localRepository = "build/maven"
+    pom {
+      name = "trufflecheck"
+      description = "Static analysis rules for Truffle implementations targeting GraalVM Native Image"
+      url = "https://github.com/elide-dev/trufflecheck"
+      inceptionYear = "2026"
+      licenses {
+        new { name = "Apache-2.0"; url = "https://www.apache.org/licenses/LICENSE-2.0" }
+        new { name = "MIT"; url = "https://opensource.org/licenses/MIT" }
+      }
+      organization {
+        name = "Elide Technologies, Inc."
+        url = "https://elide.dev"
+      }
+      scm {
+        url = "https://github.com/elide-dev/trufflecheck"
+        connection = "scm:git:https://github.com/elide-dev/trufflecheck.git"
+      }
+    }
+  }
+}
+
 workspace {
   members {
     "policy"
