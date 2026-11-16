@@ -163,42 +163,26 @@ class TruffleForbiddenCollection(config: Config) : TruffleRule(config, "collecti
 // ---------------------------------------------------------------------------------------------------------------------
 // TruffleHostInterop
 
-class TruffleHostInterop(config: Config) : TruffleRule(config, "hostinterop") {
+/**
+ * Every reference to a banned embedding-API type in guest packages, by simple or qualified name, but not imports: a
+ * reviewed crossing can then be suppressed (`@Suppress("TruffleHostInterop")`) where its reason lives.
+ */
+class TruffleHostInterop(config: Config) : TruffleRule(config, "hostinterop"), RequiresAnalysisApi {
   private val owners = policy.owners("hostinterop")
   private val scope = policy.scope("hostinterop")
   private val allow = policy.list("hostinterop.allow")
 
-  private fun banned(name: String) = Policy.inPackages(name, owners) && name !in allow
-
-  private fun inScope(element: KtElement) =
-    Policy.inPackages(element.containingKtFile.packageFqName.asString(), scope)
-
-  override fun visitImportDirective(importDirective: KtImportDirective) {
-    super.visitImportDirective(importDirective)
-    val name = importDirective.importedFqName?.asString() ?: return
-    if (inScope(importDirective) && banned(name)) report(importDirective)
-  }
-
-  /** `org.graalvm.polyglot.Value` written out in a type: the outermost qualified reference. */
-  override fun visitUserType(type: KtUserType) {
-    super.visitUserType(type)
-    if (type.qualifier == null || type.parent is KtUserType) return
-    if (inScope(type) && banned(type.text.substringBefore('<'))) report(type)
-  }
-
-  /** `org.graalvm.polyglot.Value.asValue(x)` in an expression. */
-  override fun visitDotQualifiedExpression(expression: KtDotQualifiedExpression) {
-    super.visitDotQualifiedExpression(expression)
-    if (expression.parent is KtDotQualifiedExpression || expression.getStrictParentOfType<KtImportDirective>() != null) {
-      return
+  override fun visitSimpleNameExpression(expression: org.jetbrains.kotlin.psi.KtSimpleNameExpression) {
+    super.visitSimpleNameExpression(expression)
+    if (expression !is KtNameReferenceExpression) return
+    if (!Policy.inPackages(expression.containingKtFile.packageFqName.asString(), scope)) return
+    if (expression.getStrictParentOfType<KtImportDirective>() != null) return
+    analyze(expression) {
+      val symbol = expression.mainReference.resolveToSymbol() as? org.jetbrains.kotlin.analysis.api.symbols.KaClassLikeSymbol ?: return
+      val name = symbol.classId?.asSingleFqName()?.asString() ?: return
+      if (!Policy.inPackages(name, owners) || name in allow) return
+      report(expression, "'${symbol.classId?.shortClassName}' is part of the embedding API.")
     }
-    val text = expression.text
-    if (!inScope(expression) || owners.none { text.startsWith("$it.") }) return
-    val segments = text.split('.')
-    val type = (2..segments.size).map { segments.take(it).joinToString(".") }.firstOrNull { name ->
-      name.substringAfterLast('.').firstOrNull()?.isUpperCase() == true
-    } ?: return
-    if (banned(type)) report(expression)
   }
 }
 
@@ -383,8 +367,11 @@ class TruffleNodeChildren(config: Config) : TruffleRule(config, "children"), Req
   private val iterable = ClassId.fromString("kotlin/collections/Iterable")
   private val map = ClassId.fromString("kotlin/collections/Map")
 
+  /** A node that could be adopted: not a RootNode (roots are referenced, never children). */
+  private fun KaSession.isChild(type: KaType?): Boolean = isNode(type) && !isSubtype(type, Truffle.ROOT_NODE)
+
   private fun KaSession.isNodeArray(type: KaType?): Boolean =
-    type != null && type.isArrayOrPrimitiveArray && isNode(type.arrayElementType)
+    type != null && type.isArrayOrPrimitiveArray && isChild(type.arrayElementType)
 
   private fun KaSession.isNestedNodeArray(type: KaType?): Boolean =
     type != null && type.isArrayOrPrimitiveArray &&
@@ -394,7 +381,7 @@ class TruffleNodeChildren(config: Config) : TruffleRule(config, "children"), Req
     if (type !is KaClassType || !(type.isSubtypeOf(iterable) || type.isSubtypeOf(map))) return false
     return type.typeArguments.any { argument ->
       val bound = (argument as? KaTypeArgumentWithVariance)?.type
-      isNode(bound) || isNodeArray(bound)
+      isChild(bound) || isNodeArray(bound)
     }
   }
 
@@ -418,7 +405,7 @@ class TruffleNodeChildren(config: Config) : TruffleRule(config, "children"), Req
       val annotations = symbol.annotations.classIds + (symbol.backingFieldSymbol?.annotations?.classIds ?: emptyList())
       if (isNodeArray(type) && Truffle.CHILDREN !in annotations) {
         report(property, "Node array properties must be @Children.")
-      } else if (isNode(type) && !isNodeArray(type) && Truffle.CHILD !in annotations) {
+      } else if (isChild(type) && !isNodeArray(type) && Truffle.CHILD !in annotations) {
         report(property, "Node properties must be @Child.")
       }
     }
@@ -432,7 +419,7 @@ class TruffleNodeChildren(config: Config) : TruffleRule(config, "children"), Req
     analyze(expression) {
       val target = expression.mainReference.resolveToSymbol() as? KaVariableSymbol ?: return
       if (target !is KaLocalVariableSymbol && target !is KaValueParameterSymbol) return
-      if (!(isNode(target.returnType) || isNodeArray(target.returnType))) return
+      if (!(isChild(target.returnType) || isNodeArray(target.returnType))) return
       if (!extendsNode(literal.objectDeclaration)) return
       // Declared inside the object expression: not a capture.
       val declaration = target.psi ?: return

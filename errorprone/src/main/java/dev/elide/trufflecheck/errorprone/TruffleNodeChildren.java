@@ -24,7 +24,9 @@ import javax.lang.model.element.Modifier;
  * Node-typed state in a node must be adopted: {@code @Child} for one node, {@code @Children} for a
  * one-dimensional array. {@code final} fields are references to nodes owned elsewhere (Truffle
  * rejects {@code @Child} on them) and are left alone; collections and nested arrays of nodes can't
- * be adopted at all.
+ * be adopted at all. {@code RootNode}s are never children ({@code insert} on a root is illegal): a
+ * field holding one references another call target, so root-typed fields, arrays and captures are
+ * exempt.
  */
 @BugPattern(
     name = "TruffleNodeChildren",
@@ -46,8 +48,13 @@ public final class TruffleNodeChildren extends TruffleChecker
     super(flags, "children");
   }
 
+  /** A node that could be adopted: not a RootNode. */
+  private static boolean isChild(Type type, VisitorState state) {
+    return Truffle.isNode(type, state) && !Truffle.isSubtype(type, Truffle.ROOT_NODE, state);
+  }
+
   private static boolean isNodeArray(Type type, VisitorState state) {
-    return type instanceof Type.ArrayType array && Truffle.isNode(array.elemtype, state);
+    return type instanceof Type.ArrayType array && isChild(array.elemtype, state);
   }
 
   private static boolean isNestedNodeArray(Type type, VisitorState state) {
@@ -63,7 +70,7 @@ public final class TruffleNodeChildren extends TruffleChecker
     }
     for (var argument : type.getTypeArguments()) {
       var bound = argument instanceof Type.WildcardType wildcard ? wildcard.getExtendsBound() : argument;
-      if (bound != null && (Truffle.isNode(bound, state) || isNodeArray(bound, state))) return true;
+      if (bound != null && (isChild(bound, state) || isNodeArray(bound, state))) return true;
     }
     return false;
   }
@@ -89,7 +96,7 @@ public final class TruffleNodeChildren extends TruffleChecker
     if (isNodeArray(type, state) && !ASTHelpers.hasAnnotation(symbol, Truffle.CHILDREN, state)) {
       return report(tree, "Node array fields must be @Children.");
     }
-    if (Truffle.isNode(type, state) && !ASTHelpers.hasAnnotation(symbol, Truffle.CHILD, state)) {
+    if (isChild(type, state) && !ASTHelpers.hasAnnotation(symbol, Truffle.CHILD, state)) {
       return report(tree, "Node fields must be @Child.");
     }
     return Description.NO_MATCH;
@@ -101,7 +108,7 @@ public final class TruffleNodeChildren extends TruffleChecker
     if (!(ASTHelpers.getSymbol(tree) instanceof Symbol.VarSymbol variable)
         || (variable.getKind() != ElementKind.LOCAL_VARIABLE
             && variable.getKind() != ElementKind.PARAMETER)
-        || !(Truffle.isNode(variable.type, state) || isNodeArray(variable.type, state))) {
+        || !(isChild(variable.type, state) || isNodeArray(variable.type, state))) {
       return Description.NO_MATCH;
     }
     var owner = ASTHelpers.findEnclosingNode(state.getPath(), ClassTree.class);

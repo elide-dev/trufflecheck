@@ -11,6 +11,9 @@ Licensed under [Apache-2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT), at your optio
 
 ## Get it
 
+> **Pre-release.** No version is published yet: the first release (0.1.0) will appear on maven.elide.dev and GitHub
+> releases when it's tagged. Until then, use a git submodule, or build the JARs with `mise run build`.
+
 | Channel | What you get |
 |---|---|
 | Maven, at `https://maven.elide.dev` | `dev.elide:trufflecheck-errorprone`, `dev.elide:trufflecheck-detekt`, `dev.elide:trufflecheck-policy` |
@@ -128,11 +131,11 @@ Rule names in `elide-dev/runtime` started as `Elide*`. Error Prone still accepts
 
 | Rule | Java | Kotlin | Flags | Why |
 |---|:-:|:-:|---|---|
-| `TruffleNodeChildren` | ✓ | ✓ | Non-final node fields (or node-interface fields) without `@Child`, node arrays without `@Children`, collections or nested arrays of nodes, nodes captured by anonymous/local node classes | An unadopted node isn't part of the tree: partial evaluation can't treat it as a constant, calls through it stay virtual, and passing the frame into one aborts compilation. `final` fields are references to nodes owned elsewhere and are left alone. |
+| `TruffleNodeChildren` | ✓ | ✓ | Non-final node fields (or node-interface fields) without `@Child`, node arrays without `@Children`, collections or nested arrays of nodes, nodes captured by anonymous/local node classes | An unadopted node isn't part of the tree: partial evaluation can't treat it as a constant, calls through it stay virtual, and passing the frame into one aborts compilation. `final` fields and `RootNode`-typed fields are references to nodes owned elsewhere (a root is never adopted) and are left alone. |
 | `TruffleCompilationFinalDimensions` | ✓ | ✓ | `@CompilationFinal` on an array without `dimensions` | Omitted, `dimensions` defaults to the array's full depth, so every element is folded as a constant; elements written later without invalidation leave stale compiled code. State the depth you mean. Honors the DSL's `VerifyCompilationFinal` suppression key. |
 | `TruffleBlockingInNode` | ✓ | ✓ | `synchronized`, locks, `withLock`, `ThreadLocal`, `sleep`/`join`/`park`/`await`/`Future.get` in code partial evaluation reaches | Lock methods are on Native Image's runtime-compilation blocklist (the image build fails), and blocking in compiled guest code stalls safepoints. Put it behind `@TruffleBoundary` or a `transferToInterpreter`; use `TruffleSafepoint.setBlocked` for guest-visible blocking. |
 | `TruffleHostValueInImageHeap` | ✓ | ✓ | Build-host reads (env, properties, clocks, locale, CPU count, randomness, `new Random()`/`Thread`/streams) in the static initializer of a build-time-initialized class, including one hop into constructors and methods of the same file | Native Image runs that initializer on the build machine and freezes the result into the image heap: every user sees the builder's environment, time and seed. |
-| `TruffleHostInterop` | ✓ | ✓ | `org.graalvm.polyglot` imports or qualified references in guest-implementation packages | The embedding API is for hosts. Guest code using it skips Truffle interop and can't be partially evaluated. Use `InteropLibrary` and `@ExportLibrary`. `SandboxPolicy` and `ByteSequence` are allowed. |
+| `TruffleHostInterop` | ✓ | ✓ | Each reference to an `org.graalvm.polyglot` type (simple or qualified name, not imports) in guest-implementation packages, so a reviewed crossing can be suppressed on its method | The embedding API is for hosts. Guest code using it skips Truffle interop and can't be partially evaluated. Use `InteropLibrary` and `@ExportLibrary`. `SandboxPolicy` and `ByteSequence` are allowed. |
 | `TruffleStackfulException` | ✓ | ✓ | JDK exceptions created with a stack trace; project exception types extending one without opting out; Kotlin `require`/`check`/`error`/`TODO` | Filling in a stack trace walks the stack, and `Throwable.fillInStackTrace` is on Native Image's runtime-compilation blocklist. Override `fillInStackTrace`, pass `writableStackTrace = false`, or extend a Truffle exception type. |
 | `TruffleForbiddenCollection` | ✓ | ✓ | `LinkedList`, `Vector`, `Hashtable`, `Stack`, `StringBuffer` | Pointer chasing or a lock on every operation, and on Native Image's runtime-compilation blocklist. Use array-backed collections and `StringBuilder`. |
 | `TruffleCompilationFinalWrite` | ✓ | ✓ | Writes to `@CompilationFinal` fields (or elements within their `dimensions`) outside constructors, not preceded by `transferToInterpreterAndInvalidate()` or `Assumption.invalidate()` | Compiled code folded the old value; changing it without invalidating leaves compiled code using a stale constant. A plain `transferToInterpreter()` deoptimizes but doesn't invalidate. |

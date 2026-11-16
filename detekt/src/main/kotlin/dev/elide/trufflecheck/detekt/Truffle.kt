@@ -45,6 +45,7 @@ internal object Truffle {
 
   val NODE = id("com.oracle.truffle.api.nodes.Node")
   val NODE_INTERFACE = id("com.oracle.truffle.api.nodes.NodeInterface")
+  val ROOT_NODE = id("com.oracle.truffle.api.nodes.RootNode")
   val CHILD = id("com.oracle.truffle.api.nodes.Node", "Child")
   val CHILDREN = id("com.oracle.truffle.api.nodes.Node", "Children")
   val BOUNDARY = id("com.oracle.truffle.api.CompilerDirectives", "TruffleBoundary")
