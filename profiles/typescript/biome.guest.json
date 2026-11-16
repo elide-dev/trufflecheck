@@ -1,0 +1,39 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.7/schema.json",
+  "root": false,
+  "extends": ["./biome.base.json"],
+  "linter": {
+    "rules": {
+      "performance": {
+        "noDelete": "error",
+        "noAccumulatingSpread": "error",
+        "useTopLevelRegex": "warn"
+      },
+      "complexity": {
+        "noArguments": "error"
+      },
+      "suspicious": {
+        "noProto": "error",
+        "noGlobalAssign": "error",
+        "noSparseArray": "error",
+        "noVar": "error",
+        "noForIn": "warn",
+        "noConsole": { "level": "error", "options": { "allow": ["error", "warn"] } },
+        "noExplicitAny": "error"
+      },
+      "style": {
+        "useConst": "error",
+        "noNonNullAssertion": "error",
+        "noParameterAssign": "warn"
+      },
+      "nursery": {
+        "noDynamicDelete": "error",
+        "noImpliedEval": "error",
+        "noExtendNative": "error",
+        "noNewArray": "error",
+        "noMapSpread": "warn",
+        "noEagerArrayMethodsInLoops": "warn"
+      }
+    }
+  }
+}

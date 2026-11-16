@@ -177,19 +177,30 @@ Under [`profiles/`](profiles):
   on fast paths and throw stackful exceptions.
 - **`rust/`**: `deny.toml`, `clippy.toml`, `rustfmt.toml`, plus `lints.toml`, a `[workspace.lints]` block to paste into
   your workspace `Cargo.toml`.
-- **`typescript/`**: `biome.json` and `tsconfig.strict.json`.
+- **`typescript/`**:
+  - `biome.base.json`: lint-only correctness rules, with noisy ones at `warn`.
+  - `biome.guest.json`: the base plus engine-shape rules for JS/TS that runs on GraalJS inside the runtime (no
+    `delete`, `arguments`, `eval`, `with`, `__proto__`, sparse arrays or `var`).
+  - `tsconfig.strict.json`: the portable core.
+  - `tsconfig.strictest.json`: adds `exactOptionalPropertyTypes` and `noPropertyAccessFromIndexSignature`.
+  - `tsconfig.runtime.json`: adds module-emit policy for type-stripping runtimes (`verbatimModuleSyntax`,
+    `isolatedModules`, `erasableSyntaxOnly`).
 
 Biome and TypeScript configs can extend the profiles directly:
 
 ```jsonc
-// biome.json
-{ "extends": ["./third_party/trufflecheck/profiles/typescript/biome.json"] }
+// biome.json: tooling and libraries
+{ "root": true, "extends": ["./third_party/trufflecheck/profiles/typescript/biome.base.json"] }
+// biome.json in a directory of guest builtins
+{ "extends": ["./third_party/trufflecheck/profiles/typescript/biome.guest.json"] }
 ```
 
 ```jsonc
 // tsconfig.json
-{ "extends": "./third_party/trufflecheck/profiles/typescript/tsconfig.strict.json" }
+{ "extends": "./third_party/trufflecheck/profiles/typescript/tsconfig.runtime.json" }
 ```
+
+Formatting stays per repository. The Biome profiles target Biome 2.6.7.
 
 Cargo and cargo-deny can't include other files. Copy the Rust profiles into your workspace and add only
 repo-specific entries (git forks, advisory ignores, duplicate `skip`s), each with a reason. Every member needs
