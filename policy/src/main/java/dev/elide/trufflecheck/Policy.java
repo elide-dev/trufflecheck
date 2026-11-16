@@ -32,6 +32,9 @@ import java.util.regex.Pattern;
  *
  * <p>Native Image class-init lists are named by {@code classinit.buildtime} and {@code
  * classinit.runtime}: paths relative to the overlay file, one class or package prefix per line.
+ * {@code classinit.native-image} names files or directories (relative to the overlay) to scan for
+ * {@code META-INF/native-image/**}{@code /native-image.properties}; their {@code Args} contribute
+ * {@code --initialize-at-build-time=} and {@code --initialize-at-run-time=} entries.
  *
  * <p>Policies are cached per overlay path and reloaded when the overlay or a list it names changes,
  * so long-lived compiler daemons pick up edits.
@@ -130,11 +133,47 @@ public final class Policy {
         }
       }
     }
-    return new Policy(
-        rules,
-        classInit(rules.getProperty("classinit.buildtime"), base, inputs),
-        classInit(rules.getProperty("classinit.runtime"), base, inputs),
-        Map.copyOf(inputs));
+    var buildTime = new ArrayList<>(classInit(rules.getProperty("classinit.buildtime"), base, inputs));
+    var runTime = new ArrayList<>(classInit(rules.getProperty("classinit.runtime"), base, inputs));
+    for (var root : split(rules.getProperty("classinit.native-image", ""))) {
+      var path = (base == null ? Path.of(root) : base.resolve(root)).toAbsolutePath();
+      for (var file : nativeImageProperties(path)) {
+        inputs.put(file, modified(file));
+        readNativeImageArgs(file, buildTime, runTime);
+      }
+    }
+    return new Policy(rules, List.copyOf(buildTime), List.copyOf(runTime), Map.copyOf(inputs));
+  }
+
+  private static List<Path> nativeImageProperties(Path root) {
+    if (Files.isRegularFile(root)) return List.of(root);
+    if (!Files.isDirectory(root)) return List.of();
+    try (var walk = Files.walk(root)) {
+      return walk.filter(p -> p.getFileName().toString().equals("native-image.properties"))
+          .filter(p -> p.toString().replace('\\', '/').contains("META-INF/native-image/"))
+          .sorted()
+          .toList();
+    } catch (IOException e) {
+      throw new UncheckedIOException("Cannot scan " + root + " for native-image.properties", e);
+    }
+  }
+
+  /** {@code Args = --initialize-at-build-time=a,b --initialize-at-run-time=c}, with line continuations. */
+  private static void readNativeImageArgs(Path file, List<String> buildTime, List<String> runTime) {
+    var properties = new Properties();
+    try (var stream = Files.newInputStream(file)) {
+      read(properties, stream);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Cannot read " + file, e);
+    }
+    var args = properties.getProperty("Args", "");
+    for (var arg : args.trim().split("\\s+")) {
+      if (arg.startsWith("--initialize-at-build-time=")) {
+        buildTime.addAll(split(arg.substring("--initialize-at-build-time=".length())));
+      } else if (arg.startsWith("--initialize-at-run-time=")) {
+        runTime.addAll(split(arg.substring("--initialize-at-run-time=".length())));
+      }
+    }
   }
 
   private static void read(Properties into, InputStream stream) throws IOException {

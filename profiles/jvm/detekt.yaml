@@ -249,3 +249,23 @@ Truffle:
     active: true
   TruffleFastPathRecursion:
     active: true
+  TruffleDeprecatedApi:
+    active: true
+  TruffleDslSuppressions:
+    active: true
+  TruffleLegacyProfile:
+    active: true
+  TruffleUncachedOnFastPath:
+    active: true
+  TruffleBoundaryExceptionPolicy:
+    active: true
+  TruffleSlowPathInline:
+    active: true
+  TruffleBytecodeSwitch:
+    active: true
+  TruffleFieldUpdaterConstant:
+    active: true
+  TruffleDeclaredType:
+    active: true
+  TruffleKotlinNodeHazards:
+    active: true

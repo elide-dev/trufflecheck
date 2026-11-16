@@ -45,6 +45,16 @@ class TruffleRules : RuleSetProvider {
         ::TruffleGenericCatch,
         ::TruffleGuestLoop,
         ::TruffleFastPathRecursion,
+        ::TruffleDeprecatedApi,
+        ::TruffleDslSuppressions,
+        ::TruffleLegacyProfile,
+        ::TruffleUncachedOnFastPath,
+        ::TruffleBoundaryExceptionPolicy,
+        ::TruffleSlowPathInline,
+        ::TruffleBytecodeSwitch,
+        ::TruffleFieldUpdaterConstant,
+        ::TruffleDeclaredType,
+        ::TruffleKotlinNodeHazards,
       ),
     )
 }

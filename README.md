@@ -109,7 +109,9 @@ collections+=java.util.concurrent.CopyOnWriteArrayList
 ```
 
 Class-init lists hold one class or package prefix per line, as passed to `--initialize-at-build-time` /
-`--initialize-at-run-time`; the most specific match wins.
+`--initialize-at-run-time`; the most specific match wins. Or let the rules read your existing Native Image
+configuration: `classinit.native-image=src/main/resources` scans for `META-INF/native-image/**/native-image.properties`
+and takes the `--initialize-at-*` entries from their `Args`.
 
 The rules find the file through, in order:
 1. the checker option: `-XepOpt:Trufflecheck:Policy=…` for Error Prone, `policy:` for detekt;
@@ -145,6 +147,16 @@ Rule names in `elide-dev/runtime` started as `Elide*`. Error Prone still accepts
 | `TruffleGenericCatch` | ✓ | ✓ | `catch (Throwable/Exception/RuntimeException/Error/StackOverflowError)` in code partial evaluation reaches, without letting `ControlFlowException`/`AbstractTruffleException` through | Swallows returns, breaks, guest errors and cancellation. |
 | `TruffleGuestLoop` (warning) | ✓ | ✓ | Loops in nodes that execute child nodes without `LoopNode`/`RepeatingNode`, `TruffleSafepoint.poll` or OSR polling | No on-stack replacement and no loop-count profiling, and safepoints (cancellation, thread-local actions) can't interrupt it. |
 | `TruffleFastPathRecursion` (warning) | ✓ | ✓ | Direct self-recursion in code partial evaluation reaches | Partial evaluation can't inline recursion and host inlining takes only the first level. Recurse through the AST or behind a boundary. |
+| `TruffleDeprecatedApi` (warning) | ✓ | ✓ | Uses of `@Deprecated` Truffle/GraalVM API (`DynamicObjectLibrary`, `Env.createThread`, `Node.getCost`, …), with the migration when the policy knows it | Deprecated Truffle API is removed in later releases; the hint (`DynamicObject.GetNode`/`PutNode`, `newTruffleThreadBuilder`, …) is what javac's lint doesn't give you. |
+| `TruffleDslSuppressions` | ✓ | ✓ | `@SuppressWarnings("truffle")` or `("all")` in Truffle code | The DSL's warnings (sharing, inlining, `neverDefault`, cache limits) are performance and footprint findings; suppress the specific `truffle-*` key. |
+| `TruffleLegacyProfile` (warning) | ✓ | ✓ | `BranchProfile`/`ConditionProfile`/… fields in DSL nodes | Inlined profiles (`@Cached Inlined*Profile` with `@Bind Node`) live in the node's state bits instead of separate objects, cutting footprint and image size. |
+| `TruffleUncachedOnFastPath` (warning) | ✓ | ✓ | `getUncached()` and direct `CallTarget.call` in code partial evaluation reaches | Uncached variants dispatch on every call and never specialize; a direct call gets no inlining or splitting. Use `@Cached` and `DirectCallNode`/`IndirectCallNode`. |
+| `TruffleBoundaryExceptionPolicy` (suggestion) | ✓ | ✓ | `@TruffleBoundary` methods that throw guest exceptions without `transferToInterpreterOnException = false` | By default, the first exception out of a boundary deoptimizes the caller, so an expected guest error costs a deoptimization. |
+| `TruffleSlowPathInline` (suggestion) | ✓ | ✓ | Message building (concatenation, interpolation) after `transferToInterpreter*()` in a node method | It never runs compiled, but host compilation still inlines it into the interpreter, growing the image. Extract it to a separate method. |
+| `TruffleBytecodeSwitch` (suggestion) | ✓ | ✓ | A loop switching over elements of a `@CompilationFinal` array, without `@HostCompilerDirectives.BytecodeInterpreterSwitch` | Host compilation optimizes annotated dispatch loops for the native image. |
+| `TruffleFieldUpdaterConstant` (warning) | ✓ | ✓ | `Atomic*FieldUpdater.newUpdater` or `Unsafe` offsets not directly initializing a `static final` field | Native Image recomputes offsets only for that shape (otherwise the build JVM's offset is baked in), and partial evaluation needs the updater to be a constant. |
+| `TruffleDeclaredType` (warning) | ✓ | ✓ | `TruffleObject` as the declared type of a field, parameter, local or return value | Interop dispatches through libraries on `Object`; the marker type only adds casts and type checks in compiled code (GraalPy enforces this too). |
+| `TruffleKotlinNodeHazards` | | ✓ | In nodes: delegated properties (`by lazy`), `@Child val`, spread arguments on hot paths | Delegates add an object, a lock and a lambda per read; `@Child val` is a final field Truffle rejects; spreads copy arrays per call. |
 | `TruffleAnalysisError` | | ✓ | Kotlin sources detekt couldn't fully resolve | Unresolved code hides findings. Fix the classpath rather than trust a clean report. |
 
 "Code partial evaluation reaches" means a method of a `Node` (static or not, including Kotlin companions), an

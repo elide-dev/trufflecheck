@@ -17,3 +17,12 @@ dev.elide.trufflecheck.errorprone.TruffleNonConstantNodeState
 dev.elide.trufflecheck.errorprone.TruffleGenericCatch
 dev.elide.trufflecheck.errorprone.TruffleGuestLoop
 dev.elide.trufflecheck.errorprone.TruffleFastPathRecursion
+dev.elide.trufflecheck.errorprone.TruffleDeprecatedApi
+dev.elide.trufflecheck.errorprone.TruffleDslSuppressions
+dev.elide.trufflecheck.errorprone.TruffleLegacyProfile
+dev.elide.trufflecheck.errorprone.TruffleUncachedOnFastPath
+dev.elide.trufflecheck.errorprone.TruffleBoundaryExceptionPolicy
+dev.elide.trufflecheck.errorprone.TruffleSlowPathInline
+dev.elide.trufflecheck.errorprone.TruffleBytecodeSwitch
+dev.elide.trufflecheck.errorprone.TruffleFieldUpdaterConstant
+dev.elide.trufflecheck.errorprone.TruffleDeclaredType
