@@ -1,25 +1,16 @@
-<h1 align="center">trufflecheck</h1>
+# trufflecheck
 
-<p align="center">
-  Static analysis rules and strictness profiles for
-  <a href="https://www.graalvm.org/latest/graalvm-as-a-platform/language-implementation-framework/">Truffle</a>
-  languages<br>that ship as <b>GraalVM Native Image</b> (SubstrateVM) binaries.
-</p>
+[![CI](https://github.com/elide-dev/trufflecheck/actions/workflows/ci.yml/badge.svg)](https://github.com/elide-dev/trufflecheck/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/elide-dev/trufflecheck)](https://github.com/elide-dev/trufflecheck/releases)
+[![Maven: maven.elide.dev](https://img.shields.io/badge/maven-maven.elide.dev-8A2BE2)](https://maven.elide.dev)
+[![License: Apache-2.0 or MIT](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue)](#license)
 
-<p align="center">
-  <a href="https://github.com/elide-dev/trufflecheck/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/elide-dev/trufflecheck/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://github.com/elide-dev/trufflecheck/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/elide-dev/trufflecheck"></a>
-  <a href="https://maven.elide.dev"><img alt="Maven: maven.elide.dev" src="https://img.shields.io/badge/maven-maven.elide.dev-8A2BE2"></a>
-  <a href="#license"><img alt="License: Apache-2.0 or MIT" src="https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue"></a>
-</p>
+Static analysis rules and strictness profiles for
+[Truffle](https://www.graalvm.org/latest/graalvm-as-a-platform/language-implementation-framework/) languages that ship
+as **GraalVM Native Image** (SubstrateVM) binaries.
 
-<p align="center">
-  <a href="#get-it">Get it</a> ·
-  <a href="#use-the-rules">Use the rules</a> ·
-  <a href="#rule-catalog">Rule catalog</a> ·
-  <a href="#profiles">Profiles</a> ·
-  <a href="#develop">Develop</a>
-</p>
+[Get it](#get-it) · [Use the rules](#use-the-rules) · [Rule catalog](#rule-catalog) · [Profiles](#profiles) ·
+[Develop](#develop)
 
 ---
 
