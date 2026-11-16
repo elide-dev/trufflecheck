@@ -1,0 +1,20 @@
+// trufflecheck: shared static-analysis rules and strictness profiles for Elide's Truffle and GraalVM projects.
+//
+// Members, each building one JAR:
+//   policy/      trufflecheck-policy      rule policy (owners, scopes, messages) shared by both checker JARs
+//   errorprone/  trufflecheck-errorprone  Error Prone BugCheckers, policy included; a javac plugin
+//   detekt/      trufflecheck-detekt      detekt rule set, policy included; a `detekt --plugins` JAR
+// Tool profiles (Error Prone flags, detekt and CPD config, cargo-deny, clippy, Biome) live under `profiles/`.
+amends "elide:project.pkl"
+
+name = "trufflecheck"
+version = "0.1.0"
+description = "Static analysis rules and strictness profiles for Truffle implementations on GraalVM"
+
+workspace {
+  members {
+    "policy"
+    "errorprone"
+    "detekt"
+  }
+}

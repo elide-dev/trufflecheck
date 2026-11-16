@@ -1,0 +1,22 @@
+# trufflecheck baseline Cargo lints. Cargo can't include lint tables from another file: paste these sections into
+# the workspace Cargo.toml and opt each crate in with `[lints] workspace = true`. Repositories may raise levels, but
+# shouldn't lower them.
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+unused_must_use = "deny"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+correctness = { level = "deny", priority = -1 }
+suspicious = { level = "warn", priority = -1 }
+disallowed_methods = "deny"
+disallowed_types = "deny"
+disallowed_macros = "deny"
+# Every `unsafe` block states why it is sound; reviewed crates can raise this to deny.
+undocumented_unsafe_blocks = "warn"
+redundant_clone = "warn"
+clone_on_ref_ptr = "warn"
+# No glob imports outside test modules (wildcard_imports exempts a test module's `use super::*`).
+wildcard_imports = "warn"
+enum_glob_use = "warn"

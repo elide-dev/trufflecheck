@@ -1,0 +1,4 @@
+# trufflecheck baseline rustfmt configuration: the 2024 style edition.
+# Indentation is a per-repository choice (runtime uses `tab_spaces = 2`); add it to the repository's copy.
+edition = "2024"
+style_edition = "2024"

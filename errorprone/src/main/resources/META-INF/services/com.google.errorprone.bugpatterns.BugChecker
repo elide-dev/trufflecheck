@@ -1,0 +1,7 @@
+dev.elide.trufflecheck.errorprone.TruffleStackfulException
+dev.elide.trufflecheck.errorprone.TruffleForbiddenCollection
+dev.elide.trufflecheck.errorprone.TruffleHostInterop
+dev.elide.trufflecheck.errorprone.TruffleBlockingInNode
+dev.elide.trufflecheck.errorprone.TruffleCompilationFinalDimensions
+dev.elide.trufflecheck.errorprone.TruffleHostValueInImageHeap
+dev.elide.trufflecheck.errorprone.TruffleNodeChildren

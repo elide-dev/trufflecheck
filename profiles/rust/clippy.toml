@@ -1,0 +1,5 @@
+# trufflecheck baseline clippy configuration. Copy to the workspace root; set `msrv` per repository.
+disallowed-methods = [
+  { path = "std::mem::uninitialized", reason = "Use MaybeUninit; constructing an uninitialized value can be undefined behavior." },
+  { path = "std::mem::zeroed", reason = "Use MaybeUninit::zeroed and justify the all-zero bit pattern at the call site." },
+]

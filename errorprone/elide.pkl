@@ -1,0 +1,50 @@
+// Error Prone BugCheckers. Put this JAR on the annotation-processor path next to Error Prone; the policy is
+// packaged in, so nothing else is needed.
+amends "elide:project.pkl"
+import "elide:Jvm.pkl" as Jvm
+
+// Hoisted: `project()` lives on the amended module, which nested blocks can't see (elide-dev/runtime#3009).
+local policy = project("policy")
+local errorProneVersion = "2.51.0"
+
+name = "errorprone"
+version = "0.1.0"
+
+jvm {
+  target = 21
+  java {
+    compiler {
+      // BugCheckers reach javac's internal tree and symbol types.
+      flags {
+        for (part in List("api", "code", "comp", "file", "main", "model", "parser", "processing", "tree", "util")) {
+          "--add-exports=jdk.compiler/com.sun.tools.javac.\(part)=ALL-UNNAMED"
+        }
+      }
+    }
+  }
+}
+
+sources {
+  ["main"] {
+    paths { "src/main/java/**/*.java" }
+  }
+}
+
+dependencies {
+  maven {
+    compileOnly {
+      policy
+      "com.google.errorprone:error_prone_core:\(errorProneVersion)"
+      "com.google.errorprone:error_prone_check_api:\(errorProneVersion)"
+      "com.google.errorprone:error_prone_annotation:\(errorProneVersion)"
+      "javax.inject:javax.inject:1"
+    }
+  }
+}
+
+artifacts {
+  ["jar"] = new Jvm.Jar {
+    name = "trufflecheck-errorprone"
+    from { policy }
+  }
+}

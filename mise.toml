@@ -1,0 +1,19 @@
+# Tooling for building and checking trufflecheck. `mise install` provisions everything here.
+# Elide builds the rule JARs (elide.pkl); pinned to the latest nightly.
+[tools."github:elide-dev/elide"]
+version = "1.6.4+20261116"
+bin_path = "bin"
+
+[tools."github:elide-dev/elide".platforms]
+linux-x64 = { asset_pattern = "elide.linux-amd64.txz" }
+linux-arm64 = { asset_pattern = "elide.linux-arm64.txz" }
+macos-arm64 = { asset_pattern = "elide.macos-arm64.txz" }
+
+[tasks.build]
+description = "Build the policy, Error Prone and detekt rule JARs"
+run = "elide build"
+
+[tasks.test]
+description = "Run the rule JARs end to end (javac + Error Prone, detekt CLI) over tests/ fixtures"
+depends = ["build"]
+run = "tests/smoke.sh"

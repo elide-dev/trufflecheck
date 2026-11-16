@@ -1,0 +1,74 @@
+# Error Prone + NullAway profile: one flag per line, `#` comments. Load with trufflecheck-errorprone on the processor path.
+# Base: Error Prone's default-error and default-warning checks stay enabled. Below: trufflecheck rules,
+# NullAway, opt-in checks turned on (WARN), then default checks turned OFF as style noise.
+# Any check not named here keeps its Error Prone 2.51.0 default state.
+-XepDisableWarningsInGeneratedCode
+-XepExcludedPaths:.*/(generated|third_party)/.*
+-Xep:TruffleStackfulException:ERROR
+-Xep:TruffleForbiddenCollection:ERROR
+-Xep:TruffleHostInterop:ERROR
+-Xep:TruffleBlockingInNode:ERROR
+-Xep:TruffleCompilationFinalDimensions:ERROR
+-Xep:TruffleHostValueInImageHeap:ERROR
+-Xep:TruffleNodeChildren:ERROR
+-Xep:NullAway:ERROR
+-XepOpt:NullAway:OnlyNullMarked=true
+-XepOpt:NullAway:JSpecifyMode=true
+# Opt-in checks (disabled by default upstream): nullness coverage, concurrency, dead code, API misuse.
+# Shipped with NullAway (not in the EP catalog): every class must state @NullMarked/@NullUnmarked.
+-Xep:RequireExplicitNullMarking:WARN
+-Xep:ValueClassIdentity:WARN
+-Xep:ReturnMissingNullable:WARN
+-Xep:FieldMissingNullable:WARN
+-Xep:EqualsMissingNullable:WARN
+-Xep:VoidMissingNullable:WARN
+-Xep:RedundantNullCheck:WARN
+-Xep:InterruptedExceptionSwallowed:WARN
+-Xep:Interruption:WARN
+-Xep:NonFinalStaticField:WARN
+-Xep:FieldCanBeFinal:WARN
+-Xep:FieldCanBeLocal:WARN
+-Xep:MethodCanBeStatic:WARN
+-Xep:UnusedException:WARN
+-Xep:CheckedExceptionNotThrown:WARN
+-Xep:UnnecessaryAnonymousClass:WARN
+-Xep:DefaultLocale:WARN
+-Xep:MissingDefault:WARN
+-Xep:ConstantPatternCompile:WARN
+-Xep:TryWithResourcesVariable:WARN
+-Xep:InsecureCryptoUsage:WARN
+-Xep:CatchingUnchecked:WARN
+-Xep:ReturnsNullCollection:WARN
+-Xep:PreferredInterfaceType:WARN
+-Xep:DepAnn:WARN
+-Xep:EmptyIf:WARN
+-Xep:FunctionalInterfaceClash:WARN
+-Xep:HardCodedSdCardPath:WARN
+-Xep:LongLiteralLowerCaseSuffix:WARN
+-Xep:NoAllocation:WARN
+-Xep:RedundantThrows:WARN
+-Xep:TestExceptionChecker:WARN
+-Xep:ThrowsUncheckedException:WARN
+-Xep:TransientMisuse:WARN
+-Xep:UnnecessaryDefaultInEnumSwitch:WARN
+-Xep:UnsafeLocaleUsage:WARN
+-Xep:UseCorrectAssertInTests:WARN
+-Xep:SwitchDefault:WARN
+# Default-on checks switched off: style/idiom churn that the formatters or taste already settle.
+-Xep:NonApiType:OFF
+-Xep:ArrayRecordComponent:OFF
+-Xep:NotJavadoc:OFF
+-Xep:EscapedEntity:OFF
+-Xep:InvalidParam:OFF
+-Xep:PatternMatchingInstanceof:OFF
+-Xep:StatementSwitchToExpressionSwitch:OFF
+-Xep:UnnecessaryParentheses:OFF
+-Xep:StringConcatToTextBlock:OFF
+-Xep:CanonicalDuration:OFF
+-Xep:IfChainToSwitch:OFF
+-Xep:RefactorSwitch:OFF
+-Xep:UnnamedVariable:OFF
+-Xep:EffectivelyPrivate:OFF
+-Xep:AssignmentExpression:OFF
+-Xep:BooleanLiteral:OFF
+-Xep:ParameterMissingNullable:OFF

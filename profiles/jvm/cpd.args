@@ -1,0 +1,6 @@
+# PMD CPD flags for CPD (`pmd cpd`): one flag per line, `#` comments.
+# 100 tokens with literals/annotations ignored catches copy-pasted builtins without flagging boilerplate.
+--minimum-tokens
+100
+--ignore-annotations
+--ignore-literals

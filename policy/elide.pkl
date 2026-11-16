@@ -1,0 +1,23 @@
+// Rule policy shared by the Error Prone and detekt rules. No dependencies, so both checker JARs can package it.
+amends "elide:project.pkl"
+import "elide:Jvm.pkl" as Jvm
+
+name = "policy"
+version = "0.1.0"
+
+jvm {
+  // Error Prone 2.51 runs on JDK 21+; target the oldest JDK a consumer may run javac on.
+  target = 21
+}
+
+sources {
+  ["main"] {
+    paths { "src/main/java/**/*.java" }
+  }
+}
+
+artifacts {
+  ["jar"] = new Jvm.Jar {
+    name = "trufflecheck-policy"
+  }
+}

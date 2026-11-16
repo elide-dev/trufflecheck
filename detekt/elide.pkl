@@ -1,0 +1,49 @@
+// detekt rule set `Truffle`. Pass this JAR to `detekt --plugins`; the policy is packaged in.
+amends "elide:project.pkl"
+import "elide:Jvm.pkl" as Jvm
+
+// Hoisted: `project()` lives on the amended module, which nested blocks can't see (elide-dev/runtime#3009).
+local policy = project("policy")
+/// detekt's fat CLI JAR carries the rule API and the Kotlin Analysis API it runs on.
+local detektVersion = "2.0.0-alpha.6"
+
+name = "detekt"
+version = "0.1.0"
+
+jvm {
+  target = 21
+}
+
+kotlin {
+  // detekt 2.0.0-alpha.6 loads plugins with its bundled Kotlin 2.4; emit metadata it can read.
+  compilerOptions {
+    apiVersion = "2.4"
+    languageVersion = "2.4"
+  }
+  features {
+    kotlinx = false
+    defaultPlugins = false
+  }
+}
+
+sources {
+  ["main"] {
+    paths { "src/main/kotlin/**/*.kt" }
+  }
+}
+
+dependencies {
+  maven {
+    compileOnly {
+      policy
+      "dev.detekt:detekt-cli:\(detektVersion):all"
+    }
+  }
+}
+
+artifacts {
+  ["jar"] = new Jvm.Jar {
+    name = "trufflecheck-detekt"
+    from { policy }
+  }
+}

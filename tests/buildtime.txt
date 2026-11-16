@@ -1,0 +1,2 @@
+# Fixture classes initialized at image build time.
+fixture.heap

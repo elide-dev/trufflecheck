@@ -1,0 +1,2 @@
+# Elide build state, dependencies and outputs (each workspace member has its own).
+.dev/
