@@ -134,7 +134,7 @@ jobs:
           for artifact in policy errorprone detekt; do
             cp "build/maven/dev/elide/trufflecheck-$artifact/$VERSION/trufflecheck-$artifact-$VERSION.jar" build/release/
           done
-          tar -czf "build/release/trufflecheck-profiles-$VERSION.tar.gz" profiles LICENSE LICENSE-APACHE LICENSE-MIT
+          tar -czf "build/release/trufflecheck-profiles-$VERSION.tar.gz" profiles plugins LICENSE LICENSE-APACHE LICENSE-MIT
           (cd build/release && sha256sum -- *.jar *.tar.gz > SHA256SUMS)
 
       # The JARs attested here are byte-identical to the ones on maven.elide.dev (checked above).

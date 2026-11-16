@@ -614,6 +614,37 @@ cargo deny --config third_party/trufflecheck/profiles/rust/deny.toml check
 
 Formatting stays per repository. The Biome profiles target Biome 2.6.7.
 
+## Agent skill
+
+[`truffle-language`](plugins/trufflecheck/skills/truffle-language/SKILL.md) is an [Agent Skill](https://agentskills.io)
+that teaches coding agents the principles behind these rules, so they write Truffle code that passes them. Its
+[rule reference](plugins/trufflecheck/skills/truffle-language/references/rules.md) is tested against the rule set.
+
+**Claude Code plugin** (follows releases). Commit this to your project's `.claude/settings.json`, and teammates are
+offered the plugin when they trust the folder:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "trufflecheck": { "source": { "source": "github", "repo": "elide-dev/trufflecheck" } }
+  },
+  "enabledPlugins": { "elide-dev@trufflecheck": true }
+}
+```
+
+Or install it for yourself with `claude plugin marketplace add elide-dev/trufflecheck` and
+`claude plugin install elide-dev@trufflecheck`. The skill loads as `elide-dev:truffle-language`. The plugin's version
+is bumped with each trufflecheck release, and installs update to it: turn on auto-update for the marketplace under
+`/plugin` → Marketplaces, or run `claude plugin marketplace update trufflecheck`.
+
+**Submodule** (updates with the submodule; any Agent Skills client). Link the skill into your project and commit
+the link:
+
+```sh
+third_party/trufflecheck/scripts/install-skill.sh            # .claude/skills/truffle-language
+third_party/trufflecheck/scripts/install-skill.sh --agents   # also .agents/skills/truffle-language
+```
+
 ## Develop
 
 ```sh
