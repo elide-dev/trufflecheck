@@ -175,4 +175,7 @@ for run in json.load(open(sys.argv[1]))["runs"]:
 expected kt kotlin >"$work/detekt.want"
 compare "detekt" "$work/detekt.want" "$work/detekt.got"
 
+# The agent skill must cover exactly the rules that exist.
+"$tests/skill-sync.sh" || failed=1
+
 exit "$failed"

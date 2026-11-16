@@ -1,0 +1,13 @@
+{
+  "name": "trufflecheck",
+  "description": "Agent skills for writing Truffle languages that ship as GraalVM Native Image binaries",
+  "owner": { "name": "Elide", "url": "https://github.com/elide-dev" },
+  "plugins": [
+    {
+      "name": "trufflecheck",
+      "source": "./plugins/trufflecheck",
+      "description": "Guidance for writing and reviewing Truffle language code (nodes, DSL, interop, frames, Native Image), kept in sync with the trufflecheck rules",
+      "category": "development"
+    }
+  ]
+}
