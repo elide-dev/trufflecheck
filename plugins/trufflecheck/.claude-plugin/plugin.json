@@ -1,6 +1,6 @@
 {
   "name": "elide-dev",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Guidance for writing and reviewing Truffle language code (nodes, DSL, interop, frames, Native Image), kept in sync with the trufflecheck rules",
   "author": {
     "name": "Elide",
