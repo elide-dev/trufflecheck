@@ -2,16 +2,20 @@
 #
 # cargo-deny cannot include another file, so each repository copies this file to its root and adds only what is its
 # own: `[sources] allow-git` forks, `[advisories] ignore` entries, `[bans] skip`/`deny` wrappers and licence
-# exceptions, each with an inline justification. Keep the shared sections identical to this file;
-# a diff against this file in CI catches drift.
+# exceptions, each with an inline justification. Keep the rest identical to this file.
 
 [graph]
 # Optional features ship too; check their dependency graph with the default one.
 all-features = true
+# Restrict to the platforms you ship, so licences and bans aren't checked for targets you never build, e.g.:
+# targets = ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "aarch64-apple-darwin"]
 
 [advisories]
 version = 2
 yanked = "deny"
+# Unsound advisories anywhere in the graph; unmaintained ones for direct dependencies.
+unsound = "all"
+unmaintained = "workspace"
 ignore = []
 
 [sources]
@@ -23,7 +27,10 @@ allow-git = []
 [licenses]
 version = 2
 confidence-threshold = 0.9
-# Permissive licences acceptable in Elide's binaries. Add to a repository's copy only with a justification.
+# The baseline lists licences acceptable across Elide's binaries; most workspaces use a subset.
+unused-allowed-license = "allow"
+# Permissive licences, plus MPL-2.0 (file-level copyleft: modified MPL files stay MPL). Add to a repository's copy
+# only with a justification.
 allow = [
   "Apache-2.0",
   "Apache-2.0 WITH LLVM-exception",
@@ -40,7 +47,7 @@ allow = [
 ]
 
 [licenses.private]
-# Unpublished workspace crates carry no licence field.
+# Skip licence checks for workspace crates marked `publish = false`.
 ignore = true
 
 [bans]

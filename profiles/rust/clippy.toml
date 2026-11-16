@@ -1,5 +1,20 @@
 # trufflecheck baseline clippy configuration. Copy to the workspace root; set `msrv` per repository.
+
+# Panicking helpers stay usable in tests.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-print-in-tests = true
+allow-dbg-in-tests = true
+
+# Process-global operations a Native Image host owns. Binaries (not libraries) may allow them with a reason.
 disallowed-methods = [
-  { path = "std::mem::uninitialized", reason = "Use MaybeUninit; constructing an uninitialized value can be undefined behavior." },
-  { path = "std::mem::zeroed", reason = "Use MaybeUninit::zeroed and justify the all-zero bit pattern at the call site." },
+  { path = "std::process::exit", reason = "Terminates the host VM without its shutdown hooks; return an error instead." },
+  { path = "std::process::abort", reason = "Kills the host VM; return an error instead." },
+  { path = "std::env::set_var", reason = "Process-global, races the VM's threads (and is unsafe in edition 2024); pass configuration explicitly." },
+  { path = "std::env::remove_var", reason = "Process-global, races the VM's threads (and is unsafe in edition 2024); pass configuration explicitly." },
+  { path = "std::env::set_current_dir", reason = "Changes the working directory of the whole process, including the VM." },
+  { path = "std::panic::set_hook", reason = "The panic hook is process-global and shared with the host; only binaries may install one." },
+  { path = "std::panic::take_hook", reason = "The panic hook is process-global and shared with the host; only binaries may replace it." },
+  { path = "std::mem::zeroed", reason = "Valid only for types whose all-zero bit pattern is valid; use MaybeUninit::zeroed and justify it in a SAFETY comment." },
 ]

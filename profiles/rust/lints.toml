@@ -1,22 +1,65 @@
-# trufflecheck baseline Cargo lints. Cargo can't include lint tables from another file: paste these sections into
-# the workspace Cargo.toml and opt each crate in with `[lints] workspace = true`. Repositories may raise levels, but
-# shouldn't lower them.
+# trufflecheck baseline Cargo lints for crates linked into, or embedding, GraalVM Native Image binaries.
+#
+# Cargo can't include lint tables from another file: paste these sections into the workspace Cargo.toml, and opt every
+# member in with `[lints] workspace = true` (members without it silently get none of this). Run clippy with
+# `-D warnings` in CI, or the `warn` levels below are advisory only. Repositories may raise levels, not lower them.
+#
+# Why so strict about panics: Rust code here runs on threads the image owns, behind `extern "C"`/JNI boundaries. A
+# panic that reaches such a boundary aborts the whole process (Rust >= 1.81), taking the VM with it.
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
 unused_must_use = "deny"
 unreachable_pub = "warn"
+# FFI: every `extern` names its ABI, no unwinding through foreign calls, only FFI-safe types at the boundary.
+missing_abi = "deny"
+ffi_unwind_calls = "deny"
+improper_ctypes = "deny"
+improper_ctypes_definitions = "deny"
+# `unsafe` is opt-in per crate: FFI crates add `#![allow(unsafe_code, reason = "…")]`, which keeps a reviewable list.
+unsafe_code = "deny"
 
 [workspace.lints.clippy]
-correctness = { level = "deny", priority = -1 }
-suspicious = { level = "warn", priority = -1 }
+# Hooks for repository-specific lists in clippy.toml (disallowed-methods ships a baseline; types/macros are per repo).
 disallowed_methods = "deny"
 disallowed_types = "deny"
 disallowed_macros = "deny"
-# Every `unsafe` block states why it is sound; reviewed crates can raise this to deny.
+# Every `unsafe` block states why it is sound, one operation at a time. Raise to deny once the backlog is cleared.
 undocumented_unsafe_blocks = "warn"
+multiple_unsafe_ops_per_block = "warn"
+# Panics: fatal across FFI. unwrap/expect stay allowed in tests (clippy.toml).
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+# `process::exit` skips the host VM's shutdown hooks.
+exit = "deny"
+# ABI-boundary integer and pointer hygiene (jint/jlong/size_t narrowing is the classic FFI bug).
+cast_possible_truncation = "warn"
+cast_sign_loss = "warn"
+cast_possible_wrap = "warn"
+cast_ptr_alignment = "warn"
+ptr_as_ptr = "warn"
+ptr_cast_constness = "warn"
+borrow_as_ptr = "warn"
+as_underscore = "warn"
+fn_to_numeric_cast_any = "warn"
+transmute_undefined_repr = "warn"
+no_mangle_with_rust_abi = "deny"
+mem_forget = "deny"
+# stdout/stderr belong to the embedding image; CLI crates `#![allow(clippy::print_stdout, reason = "…")]`.
+print_stdout = "warn"
+print_stderr = "warn"
+# Rust runs on host-owned threads with host-chosen stack sizes.
+large_stack_arrays = "warn"
+large_stack_frames = "warn"
+# Suppressions carry reasons; ignored results are deliberate.
+allow_attributes_without_reason = "warn"
+let_underscore_must_use = "warn"
 redundant_clone = "warn"
 clone_on_ref_ptr = "warn"
-# No glob imports outside test modules (wildcard_imports exempts a test module's `use super::*`).
+# No glob imports outside test modules (wildcard_imports exempts a test module's `use super::*`; enum_glob_use doesn't).
 wildcard_imports = "warn"
 enum_glob_use = "warn"

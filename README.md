@@ -192,7 +192,10 @@ Biome and TypeScript configs can extend the profiles directly:
 ```
 
 Cargo and cargo-deny can't include other files. Copy the Rust profiles into your workspace and add only
-repo-specific entries (git forks, advisory ignores, duplicate `skip`s), each with a reason. To check a workspace
+repo-specific entries (git forks, advisory ignores, duplicate `skip`s), each with a reason. Every member needs
+`[lints] workspace = true`, and CI must run `cargo clippy -- -D warnings` for the `warn` levels to bite. The lints
+target code behind `extern "C"`/JNI in a native image: panics there abort the whole process, so `unwrap`/`expect`/
+`panic!` are flagged outside tests, and process-global operations (`exit`, `set_var`, panic hooks) are disallowed. To check a workspace
 against the baseline as-is:
 
 ```sh
