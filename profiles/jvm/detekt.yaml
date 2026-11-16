@@ -221,3 +221,7 @@ Truffle:
     active: true
   TruffleHostValueInImageHeap:
     active: true
+  TruffleNodeChildren:
+    active: true
+  TruffleCompilationFinalDimensions:
+    active: true

@@ -6,6 +6,7 @@
 package dev.elide.trufflecheck.errorprone;
 
 import com.google.errorprone.BugPattern;
+import com.google.errorprone.ErrorProneFlags;
 import com.google.errorprone.VisitorState;
 import com.google.errorprone.bugpatterns.BugChecker;
 import com.google.errorprone.matchers.Description;
@@ -14,19 +15,16 @@ import com.sun.source.tree.AssignmentTree;
 import com.sun.source.tree.IdentifierTree;
 import com.sun.source.tree.VariableTree;
 import com.sun.tools.javac.code.Type;
-import dev.elide.trufflecheck.Policy;
 import javax.inject.Inject;
-import com.google.errorprone.ErrorProneFlags;
 
 @BugPattern(
     name = "TruffleCompilationFinalDimensions",
-    altNames = "ElideCompilationFinalDimensions",
-    summary = "@CompilationFinal array fields must declare dimensions",
+    // VerifyCompilationFinal: the Truffle DSL processor's own suppression key for this warning.
+    altNames = {"ElideCompilationFinalDimensions", "VerifyCompilationFinal"},
+    summary = "@CompilationFinal array fields must declare dimensions explicitly",
     severity = BugPattern.SeverityLevel.ERROR)
-public final class TruffleCompilationFinalDimensions extends BugChecker
+public final class TruffleCompilationFinalDimensions extends TruffleChecker
     implements BugChecker.VariableTreeMatcher {
-  private final Policy policy;
-
   /** For {@link java.util.ServiceLoader}; Error Prone itself injects the flags constructor. */
   public TruffleCompilationFinalDimensions() {
     this(ErrorProneFlags.empty());
@@ -34,18 +32,19 @@ public final class TruffleCompilationFinalDimensions extends BugChecker
 
   @Inject
   public TruffleCompilationFinalDimensions(ErrorProneFlags flags) {
-    this.policy = Policies.of(flags);
+    super(flags, "compilationfinal");
   }
-
-  private static final String ANNOTATION =
-      "com.oracle.truffle.api.CompilerDirectives.CompilationFinal";
 
   @Override
   public Description matchVariable(VariableTree tree, VisitorState state) {
-    if (!(ASTHelpers.getType(tree) instanceof Type.ArrayType)) return Description.NO_MATCH;
+    if (!(ASTHelpers.getType(tree) instanceof Type.ArrayType) || skip(state)) {
+      return Description.NO_MATCH;
+    }
     for (var annotation : tree.getModifiers().getAnnotations()) {
       var type = ASTHelpers.getType(annotation);
-      if (type == null || !type.tsym.getQualifiedName().contentEquals(ANNOTATION)) continue;
+      if (type == null || !type.tsym.getQualifiedName().contentEquals(Truffle.COMPILATION_FINAL)) {
+        continue;
+      }
       for (var argument : annotation.getArguments()) {
         if (argument instanceof AssignmentTree assignment
             && assignment.getVariable() instanceof IdentifierTree name
@@ -53,7 +52,7 @@ public final class TruffleCompilationFinalDimensions extends BugChecker
           return Description.NO_MATCH;
         }
       }
-      return buildDescription(annotation).setMessage(policy.message("compilationfinal")).build();
+      return report(annotation);
     }
     return Description.NO_MATCH;
   }

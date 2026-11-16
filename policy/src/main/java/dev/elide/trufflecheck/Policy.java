@@ -7,15 +7,19 @@ package dev.elide.trufflecheck;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 /**
  * Rule policy: which owners each rule matches, where it applies, and what it says.
@@ -28,6 +32,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <p>Native Image class-init lists are named by {@code classinit.buildtime} and {@code
  * classinit.runtime}: paths relative to the overlay file, one class or package prefix per line.
+ *
+ * <p>Policies are cached per overlay path and reloaded when the overlay or a list it names changes,
+ * so long-lived compiler daemons pick up edits.
  */
 public final class Policy {
   /** System property naming a policy overlay. */
@@ -39,14 +46,24 @@ public final class Policy {
   private static final String DEFAULTS = "/META-INF/trufflecheck/policy.properties";
   private static final Map<String, Policy> CACHE = new ConcurrentHashMap<>();
 
+  /** A {@code Type#method} entry; {@code method} is {@code <init>} for constructors. */
+  public record Call(String owner, String method) {
+    public boolean constructor() {
+      return method.equals("<init>");
+    }
+  }
+
   private final Properties rules;
   private final List<String> buildTime;
   private final List<String> runTime;
+  private final Map<Path, Long> inputs;
 
-  private Policy(Properties rules, List<String> buildTime, List<String> runTime) {
+  private Policy(
+      Properties rules, List<String> buildTime, List<String> runTime, Map<Path, Long> inputs) {
     this.rules = rules;
     this.buildTime = buildTime;
     this.runTime = runTime;
+    this.inputs = inputs;
   }
 
   /** The policy for an explicit overlay path, falling back to the system property, then env. */
@@ -54,7 +71,8 @@ public final class Policy {
     var path = blankToNull(overlay);
     if (path == null) path = blankToNull(System.getProperty(PROPERTY));
     if (path == null) path = blankToNull(System.getenv(ENVIRONMENT));
-    return CACHE.computeIfAbsent(path == null ? "" : path, Policy::load);
+    var key = path == null ? "" : path;
+    return CACHE.compute(key, (k, cached) -> cached != null && cached.fresh() ? cached : load(k));
   }
 
   /** The policy named by the system property or environment, or the bundled defaults. */
@@ -66,6 +84,21 @@ public final class Policy {
     return value == null || value.isBlank() ? null : value.strip();
   }
 
+  private boolean fresh() {
+    for (var input : inputs.entrySet()) {
+      if (modified(input.getKey()) != input.getValue()) return false;
+    }
+    return true;
+  }
+
+  private static long modified(Path path) {
+    try {
+      return Files.getLastModifiedTime(path).toMillis();
+    } catch (IOException e) {
+      return -1;
+    }
+  }
+
   private static Policy load(String overlay) {
     var rules = new Properties();
     try (var stream = Policy.class.getResourceAsStream(DEFAULTS)) {
@@ -74,10 +107,12 @@ public final class Policy {
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
+    var inputs = new ConcurrentHashMap<Path, Long>();
     Path base = null;
     if (!overlay.isEmpty()) {
       var file = Path.of(overlay).toAbsolutePath();
       base = file.getParent();
+      inputs.put(file, modified(file));
       var extra = new Properties();
       try (var stream = Files.newInputStream(file)) {
         read(extra, stream);
@@ -97,17 +132,19 @@ public final class Policy {
     }
     return new Policy(
         rules,
-        classInit(rules.getProperty("classinit.buildtime"), base),
-        classInit(rules.getProperty("classinit.runtime"), base));
+        classInit(rules.getProperty("classinit.buildtime"), base, inputs),
+        classInit(rules.getProperty("classinit.runtime"), base, inputs),
+        Map.copyOf(inputs));
   }
 
   private static void read(Properties into, InputStream stream) throws IOException {
-    into.load(new java.io.InputStreamReader(stream, StandardCharsets.UTF_8));
+    into.load(new InputStreamReader(stream, StandardCharsets.UTF_8));
   }
 
-  private static List<String> classInit(String path, Path base) {
+  private static List<String> classInit(String path, Path base, Map<Path, Long> inputs) {
     if (path == null || path.isBlank()) return List.of();
-    var file = base == null ? Path.of(path) : base.resolve(path);
+    var file = (base == null ? Path.of(path.strip()) : base.resolve(path.strip())).toAbsolutePath();
+    inputs.put(file, modified(file));
     try (var lines = Files.lines(file, StandardCharsets.UTF_8)) {
       return lines.map(String::strip).filter(l -> !l.isEmpty() && !l.startsWith("#")).toList();
     } catch (IOException e) {
@@ -124,7 +161,7 @@ public final class Policy {
   }
 
   private static Set<String> split(String value) {
-    var out = new java.util.LinkedHashSet<String>();
+    var out = new LinkedHashSet<String>();
     for (var part : value.split(",")) {
       var item = part.strip();
       if (!item.isEmpty()) out.add(item);
@@ -132,14 +169,40 @@ public final class Policy {
     return Set.copyOf(out);
   }
 
-  /** Owners ({@code Type} or {@code Type#method}) the rule matches; required. */
+  /** Owners (types, packages or {@code Type#method} entries) the rule matches; required. */
   public Set<String> owners(String rule) {
     return split(required(rule));
   }
 
+  /** A comma-separated list; empty when the key is unset. */
+  public Set<String> list(String key) {
+    return split(rules.getProperty(key, ""));
+  }
+
+  /** {@code Type#method} entries under {@code key}; a malformed entry fails loudly. */
+  public List<Call> calls(String key) {
+    var out = new ArrayList<Call>();
+    for (var entry : split(required(key))) {
+      var split = entry.indexOf('#');
+      if (split <= 0 || split == entry.length() - 1 || entry.indexOf('#', split + 1) >= 0) {
+        throw new IllegalStateException(
+            "Malformed trufflecheck policy entry under " + key + ": '" + entry
+                + "' (expected Type#method or Type#<init>)");
+      }
+      out.add(new Call(entry.substring(0, split), entry.substring(split + 1)));
+    }
+    return List.copyOf(out);
+  }
+
   /** Packages the rule applies in; empty when unset, which leaves scoped rules inactive. */
   public Set<String> scope(String rule) {
-    return split(rules.getProperty(rule + ".scope", ""));
+    return list(rule + ".scope");
+  }
+
+  /** Source paths the rule skips ({@code <rule>.exclude}, a regex on the file path), or null. */
+  public Pattern exclude(String rule) {
+    var value = rules.getProperty(rule + ".exclude", "").strip();
+    return value.isEmpty() ? null : Pattern.compile(value);
   }
 
   /** The rule's diagnostic message; required. */

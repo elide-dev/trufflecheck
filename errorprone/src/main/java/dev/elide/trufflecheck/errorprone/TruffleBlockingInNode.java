@@ -6,35 +6,28 @@
 package dev.elide.trufflecheck.errorprone;
 
 import com.google.errorprone.BugPattern;
+import com.google.errorprone.ErrorProneFlags;
 import com.google.errorprone.VisitorState;
 import com.google.errorprone.bugpatterns.BugChecker;
 import com.google.errorprone.matchers.Description;
 import com.google.errorprone.matchers.Matcher;
-import com.google.errorprone.util.ASTHelpers;
-import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.SynchronizedTree;
-import com.sun.source.tree.Tree;
-import javax.lang.model.element.Modifier;
-import dev.elide.trufflecheck.Policy;
+import com.sun.source.util.TreePath;
 import javax.inject.Inject;
-import com.google.errorprone.ErrorProneFlags;
+import javax.lang.model.element.Modifier;
 
 @BugPattern(
     name = "TruffleBlockingInNode",
     altNames = "ElideBlockingInNode",
-    summary = "Blocking or thread-local operations in Truffle nodes need @TruffleBoundary",
+    summary = "Blocking or thread-local operations reachable by partial evaluation need @TruffleBoundary",
     severity = BugPattern.SeverityLevel.ERROR)
-public final class TruffleBlockingInNode extends BugChecker
+public final class TruffleBlockingInNode extends TruffleChecker
     implements BugChecker.MethodInvocationTreeMatcher,
         BugChecker.SynchronizedTreeMatcher,
         BugChecker.MethodTreeMatcher {
-  private static final String NODE = "com.oracle.truffle.api.nodes.Node";
-  private static final String BOUNDARY =
-      "com.oracle.truffle.api.CompilerDirectives.TruffleBoundary";
-  private final Policy policy;
   private final Matcher<ExpressionTree> calls;
 
   /** For {@link java.util.ServiceLoader}; Error Prone itself injects the flags constructor. */
@@ -44,41 +37,32 @@ public final class TruffleBlockingInNode extends BugChecker
 
   @Inject
   public TruffleBlockingInNode(ErrorProneFlags flags) {
-    this.policy = Policies.of(flags);
+    super(flags, "blocking");
     this.calls = Calls.matcher(policy, "blocking");
-  }
-
-  private Description check(Tree tree, MethodTree method, VisitorState state) {
-    if (method != null && ASTHelpers.hasAnnotation(method, BOUNDARY, state)) {
-      return Description.NO_MATCH;
-    }
-    var owner = ASTHelpers.findEnclosingNode(state.getPath(), ClassTree.class);
-    var node = state.getTypeFromString(NODE);
-    var type = owner == null ? null : ASTHelpers.getType(owner);
-    if (node == null || type == null || !ASTHelpers.isSubtype(type, node, state)) {
-      return Description.NO_MATCH;
-    }
-    return buildDescription(tree).setMessage(policy.message("blocking")).build();
-  }
-
-  private Description check(Tree tree, VisitorState state) {
-    return check(tree, ASTHelpers.findEnclosingNode(state.getPath(), MethodTree.class), state);
   }
 
   @Override
   public Description matchMethodInvocation(MethodInvocationTree tree, VisitorState state) {
-    return calls.matches(tree, state) ? check(tree, state) : Description.NO_MATCH;
+    if (!calls.matches(tree, state) || skip(state) || !Truffle.inPartialEvaluation(state)) {
+      return Description.NO_MATCH;
+    }
+    return report(tree);
   }
 
   @Override
   public Description matchSynchronized(SynchronizedTree tree, VisitorState state) {
-    return check(tree, state);
+    return skip(state) || !Truffle.inPartialEvaluation(state) ? Description.NO_MATCH : report(tree);
   }
 
   @Override
   public Description matchMethod(MethodTree tree, VisitorState state) {
-    return tree.getModifiers().getFlags().contains(Modifier.SYNCHRONIZED)
-        ? check(tree, tree, state)
-        : Description.NO_MATCH;
+    if (!tree.getModifiers().getFlags().contains(Modifier.SYNCHRONIZED)
+        || tree.getBody() == null
+        || skip(state)) {
+      return Description.NO_MATCH;
+    }
+    // A synchronized method is PE-reachable when its body is.
+    var body = new TreePath(state.getPath(), tree.getBody());
+    return Truffle.inPartialEvaluation(body, state) ? report(tree) : Description.NO_MATCH;
   }
 }
