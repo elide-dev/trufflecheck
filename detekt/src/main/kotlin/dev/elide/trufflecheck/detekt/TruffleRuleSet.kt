@@ -38,6 +38,13 @@ class TruffleRules : RuleSetProvider {
         ::TruffleSkippedException,
         ::TruffleChildWriteWithoutInsert,
         ::TruffleChildrenLoop,
+        ::TruffleDeoptLoop,
+        ::TruffleStaticContextState,
+        ::TruffleFrameEscape,
+        ::TruffleNonConstantNodeState,
+        ::TruffleGenericCatch,
+        ::TruffleGuestLoop,
+        ::TruffleFastPathRecursion,
       ),
     )
 }

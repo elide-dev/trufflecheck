@@ -18,7 +18,7 @@ class KParent(val reference: KLeaf) : Node() {
   val fixed: KLeaf = reference
 
   companion object {
-    var shared: KLeaf? = null
+    var shared: KLeaf? = null // expect: TruffleStaticContextState
   }
 }
 

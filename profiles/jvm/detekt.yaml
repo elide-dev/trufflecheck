@@ -235,3 +235,17 @@ Truffle:
     active: true
   TruffleChildrenLoop:
     active: true
+  TruffleDeoptLoop:
+    active: true
+  TruffleStaticContextState:
+    active: true
+  TruffleFrameEscape:
+    active: true
+  TruffleNonConstantNodeState:
+    active: true
+  TruffleGenericCatch:
+    active: true
+  TruffleGuestLoop:
+    active: true
+  TruffleFastPathRecursion:
+    active: true

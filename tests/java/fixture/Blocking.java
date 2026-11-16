@@ -14,7 +14,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 final class Blocking {
   static final class Locking extends Node {
-    private static final ThreadLocal<Object> LOCAL = new ThreadLocal<>();
+    private static final ThreadLocal<Object> LOCAL = new ThreadLocal<>(); // expect: TruffleStaticContextState
     private final Object lock = new Object();
     private final ReentrantLock reentrant = new ReentrantLock();
 

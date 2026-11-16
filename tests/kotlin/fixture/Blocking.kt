@@ -64,8 +64,8 @@ class Locking : Node() {
   }
 
   companion object {
-    private val LOCAL = ThreadLocal<Any>()
-    private val LOCAL_NAME = ThreadLocal<Any>()
+    private val LOCAL = ThreadLocal<Any>() // expect: TruffleStaticContextState
+    private val LOCAL_NAME = ThreadLocal<Any>() // expect: TruffleStaticContextState
 
     fun local(): Any? = LOCAL.get() // expect: TruffleBlockingInNode
   }

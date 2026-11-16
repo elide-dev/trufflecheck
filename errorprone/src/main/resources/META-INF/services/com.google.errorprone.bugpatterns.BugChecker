@@ -10,3 +10,10 @@ dev.elide.trufflecheck.errorprone.TruffleMissingBoundary
 dev.elide.trufflecheck.errorprone.TruffleSkippedException
 dev.elide.trufflecheck.errorprone.TruffleChildWriteWithoutInsert
 dev.elide.trufflecheck.errorprone.TruffleChildrenLoop
+dev.elide.trufflecheck.errorprone.TruffleDeoptLoop
+dev.elide.trufflecheck.errorprone.TruffleStaticContextState
+dev.elide.trufflecheck.errorprone.TruffleFrameEscape
+dev.elide.trufflecheck.errorprone.TruffleNonConstantNodeState
+dev.elide.trufflecheck.errorprone.TruffleGenericCatch
+dev.elide.trufflecheck.errorprone.TruffleGuestLoop
+dev.elide.trufflecheck.errorprone.TruffleFastPathRecursion

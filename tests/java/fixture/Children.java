@@ -20,7 +20,7 @@ final class Children {
     @Children Leaf[] adoptedAll;
     @Child Expression adoptedExpression;
     final Leaf reference;
-    static Leaf shared;
+    static Leaf shared; // expect: TruffleStaticContextState
 
     Parent(Leaf reference) {
       this.reference = reference;
