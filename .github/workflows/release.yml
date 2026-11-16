@@ -1,0 +1,101 @@
+# Publishes a tagged version (vX.Y.Z, matching elide.pkl):
+#   - Maven: dev.elide:trufflecheck-{policy,errorprone,detekt} to https://maven.elide.dev (R2 bucket elide-maven)
+#   - GitHub release: the three JARs plus trufflecheck-profiles-X.Y.Z.tar.gz
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publish ${{ github.ref_name }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: "25"
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
+
+      - name: Check the tag matches every manifest version
+        id: version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          for manifest in elide.pkl policy/elide.pkl errorprone/elide.pkl detekt/elide.pkl; do
+            grep -qx "version = \"$version\"" "$manifest" || { echo "::error::$manifest is not at $version"; exit 1; }
+          done
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build and smoke-test
+        run: mise run test
+
+      - name: Refuse to overwrite a published version
+        run: |
+          for artifact in trufflecheck-policy trufflecheck-errorprone trufflecheck-detekt; do
+            url="https://maven.elide.dev/dev/elide/$artifact/${{ steps.version.outputs.version }}/$artifact-${{ steps.version.outputs.version }}.pom"
+            if curl -fsSI "$url" >/dev/null; then echo "::error::$url already exists"; exit 1; fi
+          done
+
+      - name: Stage the Maven repository
+        run: |
+          # Seed live metadata so the deploy merges into it instead of replacing it.
+          for artifact in trufflecheck-policy trufflecheck-errorprone trufflecheck-detekt; do
+            dir="build/maven/dev/elide/$artifact"
+            mkdir -p "$dir"
+            curl -fsSL -o "$dir/maven-metadata.xml" "https://maven.elide.dev/dev/elide/$artifact/maven-metadata.xml" \
+              || rm -f "$dir/maven-metadata.xml"
+          done
+          mise exec -- elide publish --to staging
+          # Elide keeps a stale <latest> when merging (elide-dev/runtime#3012): point it at this release.
+          python3 - "${{ steps.version.outputs.version }}" <<'PY'
+          import hashlib, pathlib, re, sys
+          version = sys.argv[1]
+          for meta in pathlib.Path("build/maven/dev/elide").glob("*/maven-metadata.xml"):
+              text = re.sub(r"<latest>[^<]*</latest>", f"<latest>{version}</latest>", meta.read_text())
+              meta.write_text(text)
+              for algorithm in ("md5", "sha1", "sha256", "sha512"):
+                  digest = hashlib.new(algorithm, text.encode()).hexdigest()
+                  meta.with_name(f"{meta.name}.{algorithm}").write_text(digest)
+          PY
+          find build/maven -type f | sort
+
+      - name: Upload to maven.elide.dev
+        uses: elide-tools/r2-upload-action@b59314040b32715ae31337cdbb7418582ade7cff # main @ 2025-12-22
+        with:
+          path: build/maven/dev/elide
+          target: dev/elide
+          bucket: elide-maven
+          account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+
+      - name: Verify the published artifacts
+        run: |
+          for artifact in trufflecheck-policy trufflecheck-errorprone trufflecheck-detekt; do
+            path="dev/elide/$artifact/${{ steps.version.outputs.version }}/$artifact-${{ steps.version.outputs.version }}.jar"
+            want="$(sha256sum "build/maven/$path" | cut -d' ' -f1)"
+            got="$(curl -fsSL "https://maven.elide.dev/$path" | sha256sum | cut -d' ' -f1)"
+            [[ "$want" == "$got" ]] || { echo "::error::$path differs from what was uploaded"; exit 1; }
+          done
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          mkdir -p build/release
+          for artifact in policy errorprone detekt; do
+            cp "build/maven/dev/elide/trufflecheck-$artifact/$version/trufflecheck-$artifact-$version.jar" build/release/
+          done
+          tar -czf "build/release/trufflecheck-profiles-$version.tar.gz" profiles LICENSE LICENSE-APACHE LICENSE-MIT
+          (cd build/release && sha256sum -- * > SHA256SUMS)
+          gh release create "$GITHUB_REF_NAME" build/release/* --title "trufflecheck $version" --generate-notes

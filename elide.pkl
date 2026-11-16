@@ -14,8 +14,12 @@ description = "Static analysis rules and strictness profiles for Truffle impleme
 publishing {
   maven {
     groupId = "dev.elide"
-    // Staged here by `elide publish`; CI uploads the tree to the bucket behind https://maven.elide.dev.
-    localRepository = "build/maven"
+    // `elide publish --to staging` (from the repository root) deploys a remote-layout repository under build/maven:
+    // checksums and merged maven-metadata.xml. The release workflow seeds it with the live metadata, then uploads it
+    // to the bucket behind https://maven.elide.dev. Relative `file:` URLs resolve against the cwd (runtime#3014).
+    repositories {
+      ["staging"] = "file:build/maven"
+    }
     pom {
       name = "trufflecheck"
       description = "Static analysis rules for Truffle implementations targeting GraalVM Native Image"
