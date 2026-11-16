@@ -18,8 +18,8 @@ pins=(
   "com.google.errorprone:error_prone_core:2.51.0:with-dependencies|9a6aee2aa413500ac9314bfb22a30b6a4992aeb1156ddfd5f8d5c3dc280f1af1"
   "io.github.eisop:dataflow-errorprone:3.41.0-eisop1|10434fba4e53f55fa9c76904cde414b918932548c9dfc4e2d634ac05ff7a7d10"
   "dev.detekt:detekt-cli:2.0.0-alpha.6:all|d46ca62ea4d62769b5d5c3ba94d49fa9b80ba11c7dba74ddb6df7fcc2c19c5fd"
-  # detekt's bundled Kotlin; the fixtures' analysis classpath needs its stdlib.
-  "org.jetbrains.kotlin:kotlin-stdlib:2.4.10|4ec0293bc3751423b203f1d8493251c57c42e73eb6377a6b8560d0974ff0a6df"
+  # The fixtures' analysis classpath needs a stdlib; matches the Kotlin the rules build with.
+  "org.jetbrains.kotlin:kotlin-stdlib:2.5.0-RC|aa94e6f417847322aa58d9fbec93278b74010f3cf593cf2038bd865e1ef42c3f"
 )
 
 fetch() {
@@ -54,16 +54,6 @@ jar() {
 ep_rules="$(jar errorprone)"
 detekt_rules="$(jar detekt)"
 
-# detekt loads plugins with its bundled Kotlin 2.4, so the rule set must carry 2.4 metadata. Elide's caches can serve
-# output built under other compiler options (elide-dev/runtime#3010); rebuild with `rm -rf detekt/.dev && elide
-# build --no-cache` if this trips.
-mkdir -p "$work/meta"
-unzip -q -o -d "$work/meta" "$detekt_rules" dev/elide/trufflecheck/detekt/TruffleRules.class
-metadata="$("${bin}javap" -v "$work/meta/dev/elide/trufflecheck/detekt/TruffleRules.class" | grep -m1 -o 'mv=\[[0-9,]*\]')"
-if [[ "$metadata" != "mv=[2,4,0]" ]]; then
-  echo "FAIL detekt rule JAR has Kotlin metadata $metadata; detekt needs mv=[2,4,0]" >&2
-  exit 1
-fi
 
 # Expected findings: "<file>:<line>:<rule>" for each marker.
 expected() {

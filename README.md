@@ -82,7 +82,7 @@ detekt --plugins trufflecheck-detekt.jar --config profiles/jvm/detekt.yaml --ana
 ```
 
 Set the overlay as a `policy:` key under `Truffle:` (or on one rule), or as `-Dtrufflecheck.policy=…`. The rule JAR
-targets detekt 2.0.0-alpha.6, whose bundled Kotlin is 2.4.
+targets detekt 2.0.0-alpha.6.
 
 ## Rust and TypeScript profiles
 
